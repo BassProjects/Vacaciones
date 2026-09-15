@@ -74,6 +74,20 @@ export async function GET() {
     users = rows.map(rowToUser);
   }
 
+  // Cumpleaños: visibles para todos los roles en el calendario de empresa,
+  // pero sin exponer más que nombre, departamento y día/mes (nunca el año).
+  const { rows: birthdayRows } = await pool.query(
+    `SELECT id, name, department, birth_date FROM users
+     WHERE active = TRUE AND birth_date IS NOT NULL`
+  );
+  const birthdays = birthdayRows.map((u) => ({
+    userId: u.id,
+    name: u.name,
+    department: u.department,
+    month: Number(u.birth_date.slice(5, 7)),
+    day: Number(u.birth_date.slice(8, 10)),
+  }));
+
   return NextResponse.json({
     me,
     config: { defaultAllowance },
@@ -82,5 +96,6 @@ export async function GET() {
     holidays,
     requests,
     users,
+    birthdays,
   });
 }

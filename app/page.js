@@ -36,6 +36,29 @@ function wordmarkHtml(size, onDark) {
   return `<span class="wordmark ${onDark ? "on-dark" : ""}" style="font-size:${size}"><span class="wm-navy">electr</span><span class="wm-ring"></span><span class="wm-lime">polis</span></span>`;
 }
 
+function eyeIconSvg(crossedOut) {
+  if (crossedOut) {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.79 21.79 0 0 1-3.22 4.6M1 1l22 22M9.88 9.88a3 3 0 1 0 4.24 4.24"/></svg>`;
+  }
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+}
+
+function passwordFieldHtml({ label, name, autocomplete, minlength, value }) {
+  return `
+    <div class="field">
+      <label>${esc(label)}</label>
+      <div class="password-field">
+        <input type="password" name="${esc(name)}" ${
+    autocomplete ? `autocomplete="${esc(autocomplete)}"` : ""
+  } ${minlength ? `minlength="${minlength}"` : ""} value="${esc(value || "")}" required />
+        <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" aria-label="Mostrar contraseña" title="Mostrar contraseña">${eyeIconSvg(
+          false
+        )}</button>
+      </div>
+    </div>
+  `;
+}
+
 function fmtDate(iso) {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
@@ -123,6 +146,7 @@ function initApp(root) {
     holidays: [],
     requests: [],
     users: [],
+    birthdays: [],
     loading: true,
     route: "perfil",
     profileTab: "solicitar",
@@ -210,6 +234,7 @@ function initApp(root) {
       APP.holidays = data.holidays;
       APP.requests = data.requests;
       APP.users = data.users;
+      APP.birthdays = data.birthdays || [];
       APP.loading = false;
       if (silent && APP.modal) {
         // No se reconstruye la interfaz mientras hay un formulario modal
@@ -307,10 +332,7 @@ function initApp(root) {
               <label>Usuario</label>
               <input type="text" name="username" autocomplete="username" required />
             </div>
-            <div class="field">
-              <label>Contraseña</label>
-              <input type="password" name="password" autocomplete="current-password" required />
-            </div>
+            ${passwordFieldHtml({ label: "Contraseña", name: "password", autocomplete: "current-password" })}
             <button type="submit" class="btn btn-primary btn-block" ${
               APP.loginLoading ? "disabled" : ""
             }>${APP.loginLoading ? "Entrando…" : "Entrar"}</button>
@@ -658,10 +680,15 @@ function initApp(root) {
         const dow = c.date.getUTCDay();
         const isWeekend = dow === 0 || dow === 6;
         const holidayName = holidaysMap.get(iso);
+        const dayBirthdays = (APP.birthdays || []).filter(
+          (b) => b.month === c.date.getUTCMonth() + 1 && b.day === c.date.getUTCDate()
+        );
+
         const classes = ["cal-day"];
         if (c.outside) classes.push("outside");
         if (isWeekend) classes.push("weekend");
         if (holidayName) classes.push("holiday");
+        if (dayBirthdays.length) classes.push("has-birthday");
         if (iso === todayISO) classes.push("today");
 
         const dayRequests = APP.requests.filter(
@@ -683,6 +710,15 @@ function initApp(root) {
           })
           .join("");
 
+        const birthdayChips = dayBirthdays
+          .map(
+            (b) =>
+              `<div class="cal-chip cal-chip-birthday" title="Cumpleaños de ${esc(b.name)}">🎂 ${esc(
+                b.name
+              )}</div>`
+          )
+          .join("");
+
         return `
           <div class="${classes.join(" ")}">
             <div class="cal-day-num">${c.date.getUTCDate()}</div>
@@ -691,6 +727,7 @@ function initApp(root) {
                 ? `<div class="cal-day-holiday-name" title="${esc(holidayName)}">${esc(holidayName)}</div>`
                 : ""
             }
+            ${birthdayChips}
             ${chips}
             ${extra > 0 ? `<div class="cal-more">+${extra} más</div>` : ""}
           </div>
@@ -780,6 +817,7 @@ function initApp(root) {
         <div class="req-card-dates">${fmtDate(r.dateFrom)} → ${fmtDate(r.dateTo)} · ${fmtDays(r.days)} días${
           r.halfStart || r.halfEnd ? " (con medio día)" : ""
         }</div>
+        <div class="faint">Solicitada el ${fmtDateTime(r.requestedAt)}</div>
         ${r.note ? `<div class="req-card-note">${esc(r.note)}</div>` : ""}
         <div class="req-card-actions">
           <button type="button" class="btn btn-success btn-sm" data-action="approve-request" data-id="${r.id}" ${
@@ -809,6 +847,8 @@ function initApp(root) {
           <span class="badge badge-approved">Aprobada</span>
         </div>
         <div class="req-card-dates">${fmtDate(r.dateFrom)} → ${fmtDate(r.dateTo)} · ${fmtDays(r.days)} días</div>
+        <div class="faint">Solicitada el ${fmtDateTime(r.requestedAt)}</div>
+        <div class="faint">Aprobada el ${fmtDateTime(r.resolvedAt)} por ${esc(r.resolvedBy || "—")}</div>
         ${r.note ? `<div class="req-card-note">${esc(r.note)}</div>` : ""}
         <div class="req-card-actions">
           <button type="button" class="btn btn-outline btn-sm" data-action="open-cancel-modal" data-id="${r.id}">Cancelar</button>
@@ -834,10 +874,14 @@ function initApp(root) {
         <button type="button" class="tab-btn ${
           APP.adminTab === "solicitudes" ? "active" : ""
         }" data-action="admin-tab" data-tab="solicitudes">Todas las solicitudes</button>
+        <button type="button" class="tab-btn ${
+          APP.adminTab === "informes" ? "active" : ""
+        }" data-action="admin-tab" data-tab="informes">Informes</button>
       </div>
       ${APP.adminTab === "empleados" ? renderAdminEmployees() : ""}
       ${APP.adminTab === "festivos" ? renderAdminHolidays() : ""}
       ${APP.adminTab === "solicitudes" ? renderAdminAllRequests() : ""}
+      ${APP.adminTab === "informes" ? renderAdminReports() : ""}
     `;
   }
 
@@ -852,6 +896,7 @@ function initApp(root) {
           <td class="mono">${esc(u.username)}</td>
           <td>${u.department ? deptPillHtml(u.department) : '<span class="faint">—</span>'}</td>
           <td>${roleLabel(u.role)}</td>
+          <td class="mono">${u.birthDate ? fmtDate(u.birthDate) : '<span class="faint">—</span>'}</td>
           <td class="mono">${fmtDays(info.allowance)}</td>
           <td class="mono">${fmtDays(info.consumed)}</td>
           <td class="mono" style="color:var(--green-fg);font-weight:700">${fmtDays(info.remaining)}</td>
@@ -880,10 +925,10 @@ function initApp(root) {
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>Nombre</th><th>Usuario</th><th>Departamento</th><th>Rol</th>
+              <th>Nombre</th><th>Usuario</th><th>Departamento</th><th>Rol</th><th>Cumpleaños</th>
               <th>Días/año</th><th>Consumidos</th><th>Restantes</th><th>Estado</th><th></th>
             </tr></thead>
-            <tbody>${rows || `<tr class="empty-row"><td colspan="9">No hay trabajadores</td></tr>`}</tbody>
+            <tbody>${rows || `<tr class="empty-row"><td colspan="10">No hay trabajadores</td></tr>`}</tbody>
           </table>
         </div>
       </div>
@@ -928,7 +973,10 @@ function initApp(root) {
     return `
       <div class="flex-between" style="margin-bottom:16px">
         <div></div>
-        <button type="button" class="btn btn-primary btn-sm" data-action="open-add-holiday-modal">+ Añadir festivo</button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-outline btn-sm" data-action="open-import-holidays-modal">Importar desde archivo</button>
+          <button type="button" class="btn btn-primary btn-sm" data-action="open-add-holiday-modal">+ Añadir festivo</button>
+        </div>
       </div>
       ${sections || `<div class="empty-state">No hay festivos configurados.</div>`}
     `;
@@ -965,12 +1013,134 @@ function initApp(root) {
     `;
   }
 
+  function computeCompanyReport() {
+    const year = currentYear();
+    const activeUsers = APP.users.filter((u) => u.active);
+    let totalAllowance = 0;
+    let totalConsumed = 0;
+    let totalRemaining = 0;
+    const perUser = activeUsers.map((u) => {
+      const info = computeAllowance(u, APP.requests, year, APP.config.defaultAllowance);
+      totalAllowance += info.allowance;
+      totalConsumed += info.consumed;
+      totalRemaining += info.remaining;
+      return { user: u, info };
+    });
+    perUser.sort((a, b) => {
+      const pctA = a.info.allowance > 0 ? a.info.consumed / a.info.allowance : 0;
+      const pctB = b.info.allowance > 0 ? b.info.consumed / b.info.allowance : 0;
+      return pctB - pctA;
+    });
+    return { year, totalAllowance, totalConsumed, totalRemaining, perUser };
+  }
+
+  function computeDepartmentReport() {
+    const year = currentYear();
+    return APP.departments.map((d) => {
+      const deptUsers = APP.users.filter((u) => u.active && u.department === d.id);
+      let allowance = 0;
+      let consumed = 0;
+      deptUsers.forEach((u) => {
+        const info = computeAllowance(u, APP.requests, year, APP.config.defaultAllowance);
+        allowance += info.allowance;
+        consumed += info.consumed;
+      });
+      const pct = allowance > 0 ? Math.round((consumed / allowance) * 100) : 0;
+      return {
+        dept: d,
+        count: deptUsers.length,
+        allowance,
+        consumed,
+        remaining: Math.max(0, allowance - consumed),
+        pct,
+      };
+    });
+  }
+
+  function reportBarRow(label, pct, valueText, color) {
+    return `
+      <div class="report-bar-row">
+        <div class="report-bar-label" title="${esc(label)}">${esc(label)}</div>
+        <div class="report-bar-track"><div class="report-bar-fill" style="width:${Math.min(
+          100,
+          Math.max(0, pct)
+        )}%;background:${color}"></div></div>
+        <div class="report-bar-value mono">${esc(valueText)}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminReports() {
+    const company = computeCompanyReport();
+    const companyPct =
+      company.totalAllowance > 0 ? Math.round((company.totalConsumed / company.totalAllowance) * 100) : 0;
+    const deptReport = computeDepartmentReport();
+
+    const employeeBars = company.perUser
+      .map(({ user, info }) => {
+        const pct = info.allowance > 0 ? Math.round((info.consumed / info.allowance) * 100) : 0;
+        return reportBarRow(
+          user.name,
+          pct,
+          `${fmtDays(info.consumed)} / ${fmtDays(info.allowance)} días`,
+          "var(--lime-dark)"
+        );
+      })
+      .join("");
+
+    const deptBars = deptReport
+      .map((d) =>
+        reportBarRow(
+          `${d.dept.name} (${d.count})`,
+          d.pct,
+          `${fmtDays(d.consumed)} / ${fmtDays(d.allowance)} días`,
+          d.dept.color
+        )
+      )
+      .join("");
+
+    return `
+      <div class="page-header" style="margin-bottom:12px"><h1 style="font-size:16px">Vacaciones de toda la empresa · ${company.year}</h1></div>
+      <div class="grid grid-3">
+        <div class="card stat-card">
+          <div class="label">Días asignados</div>
+          <div class="value">${fmtDays(company.totalAllowance)}</div>
+        </div>
+        <div class="card stat-card">
+          <div class="label">Días consumidos</div>
+          <div class="value">${fmtDays(company.totalConsumed)}</div>
+        </div>
+        <div class="card stat-card">
+          <div class="label">Días disponibles</div>
+          <div class="value accent">${fmtDays(company.totalRemaining)}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="progress-track" style="margin-bottom:6px"><div class="progress-fill" style="width:${companyPct}%"></div></div>
+        <div class="faint">${companyPct}% del total de días asignados ya consumido este año</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Uso de vacaciones por empleado</div>
+        <div class="report-bars">${
+          employeeBars || `<div class="empty-state">No hay empleados activos.</div>`
+        }</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Uso de vacaciones por departamento</div>
+        <div class="report-bars">${
+          deptBars || `<div class="empty-state">No hay departamentos con empleados.</div>`
+        }</div>
+      </div>
+    `;
+  }
+
   // ---------------- Modales ----------------
 
   function renderModal() {
     const m = APP.modal;
     if (!m) return "";
     let inner = "";
+    let wide = false;
     if (m.type === "reject") inner = renderRejectModal();
     else if (m.type === "cancel") inner = renderCancelModal();
     else if (m.type === "confirmOverAllowance") inner = renderConfirmOverAllowanceModal(m.extra);
@@ -979,7 +1149,11 @@ function initApp(root) {
     else if (m.type === "resetPassword") inner = renderResetPasswordModal();
     else if (m.type === "addHoliday") inner = renderAddHolidayModal();
     else if (m.type === "changePassword") inner = renderChangePasswordModal();
-    return `<div class="modal-overlay"><div class="modal-box">${inner}</div></div>`;
+    else if (m.type === "importHolidays") {
+      inner = renderImportHolidaysModal();
+      wide = true;
+    }
+    return `<div class="modal-overlay"><div class="modal-box${wide ? " modal-box-wide" : ""}">${inner}</div></div>`;
   }
 
   function renderRejectModal() {
@@ -1051,14 +1225,8 @@ function initApp(root) {
       <div class="modal-title">Cambiar contraseña</div>
       ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
       <form data-action="change-password-form">
-        <div class="field">
-          <label>Contraseña actual</label>
-          <input type="password" name="currentPassword" required />
-        </div>
-        <div class="field">
-          <label>Nueva contraseña</label>
-          <input type="password" name="newPassword" minlength="6" required />
-        </div>
+        ${passwordFieldHtml({ label: "Contraseña actual", name: "currentPassword", autocomplete: "current-password" })}
+        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 6 })}
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
@@ -1107,14 +1275,17 @@ function initApp(root) {
               <label>Usuario</label>
               <input type="text" name="username" required />
             </div>
-            <div class="field">
-              <label>Contraseña inicial</label>
-              <input type="password" name="password" minlength="6" required />
-            </div>
           </div>
+          ${passwordFieldHtml({ label: "Contraseña inicial", name: "password", autocomplete: "new-password", minlength: 6 })}
         `
             : ""
         }
+        <div class="field">
+          <label>Fecha de nacimiento</label>
+          <input type="date" name="birthDate" value="${
+            isEdit && user.birthDate ? esc(user.birthDate) : ""
+          }" ${isEdit ? "" : "required"} />
+        </div>
         <div class="field-row">
           <div class="field">
             <label>Departamento</label>
@@ -1155,10 +1326,7 @@ function initApp(root) {
       <div class="modal-sub">${user ? `${esc(user.name)} (${esc(user.username)})` : ""}</div>
       ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
       <form data-action="reset-password-form" data-user-id="${APP.modal.userId}">
-        <div class="field">
-          <label>Nueva contraseña</label>
-          <input type="password" name="newPassword" minlength="6" required />
-        </div>
+        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 6 })}
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
@@ -1186,6 +1354,56 @@ function initApp(root) {
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
       APP.modalLoading ? "Guardando…" : "Añadir festivo"
+    }</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderImportHolidaysModal() {
+    const m = APP.modal;
+    if (m.step === "review") {
+      const list = m.parsedHolidays
+        .map(
+          (h, i) => `
+        <label class="import-row">
+          <input type="checkbox" data-action="toggle-import-row" data-index="${i}" ${
+            m.selected.has(i) ? "checked" : ""
+          } />
+          <span class="mono">${fmtDate(h.date)}</span>
+          <span class="wrap">${esc(h.name)}</span>
+        </label>
+      `
+        )
+        .join("");
+
+      return `
+        <div class="modal-title">Revisa los festivos encontrados</div>
+        <div class="modal-sub">${m.parsedHolidays.length} festivo(s) detectados en el archivo. Desmarca los que no quieras importar.</div>
+        ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+        <div class="import-review-list">${list}</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" data-action="confirm-import-holidays" ${
+            APP.modalLoading ? "disabled" : ""
+          }>${APP.modalLoading ? "Importando…" : `Importar (${m.selected.size})`}</button>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="modal-title">Importar festivos</div>
+      <div class="modal-sub">Sube un Excel (.xlsx/.xls), CSV o PDF con una columna de fecha y otra de nombre (en un PDF, líneas de texto con la fecha y el nombre). Podrás revisar el resultado antes de guardarlo.</div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <form data-action="import-holidays-form">
+        <div class="field">
+          <label>Archivo</label>
+          <input type="file" name="file" accept=".xlsx,.xls,.csv,.pdf" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
+      APP.modalLoading ? "Analizando…" : "Analizar archivo"
     }</button>
         </div>
       </form>
@@ -1296,6 +1514,36 @@ function initApp(root) {
       case "confirm-over-allowance":
         submitRequestPayload(APP.pendingRequestPayload);
         break;
+      case "toggle-password-visibility": {
+        const wrapper = el.closest(".password-field");
+        const input = wrapper?.querySelector("input");
+        if (input) {
+          const willShow = input.type === "password";
+          input.type = willShow ? "text" : "password";
+          el.innerHTML = eyeIconSvg(willShow);
+          el.setAttribute("aria-label", willShow ? "Ocultar contraseña" : "Mostrar contraseña");
+          el.title = willShow ? "Ocultar contraseña" : "Mostrar contraseña";
+        }
+        break;
+      }
+      case "open-import-holidays-modal":
+        APP.modal = { type: "importHolidays", step: "upload" };
+        APP.modalError = "";
+        render();
+        break;
+      case "confirm-import-holidays":
+        handleConfirmImportHolidays();
+        break;
+      case "toggle-import-row": {
+        const idx = Number(el.dataset.index);
+        if (APP.modal && APP.modal.selected) {
+          if (el.checked) APP.modal.selected.add(idx);
+          else APP.modal.selected.delete(idx);
+          const btn = root.querySelector('[data-action="confirm-import-holidays"]');
+          if (btn) btn.textContent = `Importar (${APP.modal.selected.size})`;
+        }
+        break;
+      }
       default:
         break;
     }
@@ -1310,6 +1558,8 @@ function initApp(root) {
     const fd = new FormData(form);
 
     switch (action) {
+      case "import-holidays-form":
+        return handleImportHolidaysUpload(fd);
       case "login-form":
         return handleLogin(fd);
       case "request-form":
@@ -1555,6 +1805,7 @@ function initApp(root) {
           department: fd.get("department") || null,
           role: fd.get("role"),
           allowanceOverride: fd.get("allowanceOverride") || null,
+          birthDate: fd.get("birthDate") || null,
         }),
       });
       const data = await res.json();
@@ -1590,6 +1841,7 @@ function initApp(root) {
           role: fd.get("role"),
           allowanceOverride: fd.get("allowanceOverride") || null,
           active: fd.get("active") === "on",
+          birthDate: fd.get("birthDate") || null,
         }),
       });
       const data = await res.json();
@@ -1677,6 +1929,68 @@ function initApp(root) {
       await loadBootstrap(true);
     } catch (err) {
       showBanner("error", "Error de conexión");
+      render();
+    }
+  }
+
+  async function handleImportHolidaysUpload(fd) {
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/holidays/import", { method: "POST", body: fd });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido analizar el archivo";
+        render();
+        return;
+      }
+      APP.modal = {
+        type: "importHolidays",
+        step: "review",
+        parsedHolidays: data.holidays,
+        selected: new Set(data.holidays.map((_, i) => i)),
+      };
+      render();
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleConfirmImportHolidays() {
+    const m = APP.modal;
+    if (!m || !m.parsedHolidays) return;
+    const selected = m.parsedHolidays.filter((_, i) => m.selected.has(i));
+    if (!selected.length) {
+      APP.modalError = "Selecciona al menos un festivo";
+      render();
+      return;
+    }
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/holidays/import/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ holidays: selected }),
+      });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido importar";
+        render();
+        return;
+      }
+      APP.modal = null;
+      showBanner("success", `${data.imported} festivo(s) importado(s)`);
+      await loadBootstrap(true);
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
       render();
     }
   }

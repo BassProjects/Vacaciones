@@ -11,7 +11,7 @@ export async function PATCH(req, { params }) {
 
   const { id } = params;
   const body = await req.json().catch(() => ({}));
-  const { name, email, department, role, allowanceOverride, active } = body;
+  const { name, email, department, role, allowanceOverride, active, birthDate } = body;
 
   const pool = getPool();
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
@@ -21,6 +21,9 @@ export async function PATCH(req, { params }) {
   }
   if (role !== undefined && !["worker", "manager", "admin"].includes(role)) {
     return NextResponse.json({ error: "Rol no válido" }, { status: 400 });
+  }
+  if (birthDate !== undefined && birthDate !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    return NextResponse.json({ error: "Fecha de nacimiento no válida" }, { status: 400 });
   }
 
   const next = {
@@ -35,11 +38,12 @@ export async function PATCH(req, { params }) {
           : Number(allowanceOverride)
         : current.allowance_override,
     active: active !== undefined ? !!active : current.active,
+    birth_date: birthDate !== undefined ? birthDate || null : current.birth_date,
   };
 
   await pool.query(
-    `UPDATE users SET name=$1, email=$2, department=$3, role=$4, allowance_override=$5, active=$6
-     WHERE id=$7`,
+    `UPDATE users SET name=$1, email=$2, department=$3, role=$4, allowance_override=$5, active=$6, birth_date=$7
+     WHERE id=$8`,
     [
       next.name,
       next.email,
@@ -47,6 +51,7 @@ export async function PATCH(req, { params }) {
       next.role,
       next.allowance_override,
       next.active,
+      next.birth_date,
       id,
     ]
   );

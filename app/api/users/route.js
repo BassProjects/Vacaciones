@@ -11,7 +11,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const { name, email, username, password, department, role, allowanceOverride } =
+  const { name, email, username, password, department, role, allowanceOverride, birthDate } =
     await req.json().catch(() => ({}));
 
   if (!name || !username || !password) {
@@ -29,6 +29,12 @@ export async function POST(req) {
   if (!["worker", "manager", "admin"].includes(role)) {
     return NextResponse.json({ error: "Rol no válido" }, { status: 400 });
   }
+  if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    return NextResponse.json(
+      { error: "La fecha de nacimiento es obligatoria" },
+      { status: 400 }
+    );
+  }
 
   const pool = getPool();
   const { rows: existing } = await pool.query(
@@ -43,8 +49,8 @@ export async function POST(req) {
   const id = crypto.randomUUID();
   await pool.query(
     `INSERT INTO users
-       (id, name, email, username, password_hash, password_salt, department, role, allowance_override, active)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)`,
+       (id, name, email, username, password_hash, password_salt, department, role, allowance_override, birth_date, active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE)`,
     [
       id,
       name,
@@ -55,6 +61,7 @@ export async function POST(req) {
       department || null,
       role,
       allowanceOverride === "" || allowanceOverride == null ? null : Number(allowanceOverride),
+      birthDate,
     ]
   );
 
