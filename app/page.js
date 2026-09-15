@@ -702,20 +702,23 @@ function initApp(root) {
         const extra = dayRequests.length - visible.length;
         const chips = visible
           .map((r) => {
-            const dept = APP.departments.find((d) => d.id === r.department);
-            const color = dept ? dept.color : "#888";
+            const type = APP.absenceTypes.find((t) => t.id === r.type);
+            const color = type ? type.color : "#888";
+            const deptName = APP.departments.find((d) => d.id === r.department)?.name || r.department;
             return `<div class="cal-chip" style="background:${color}" title="${esc(r.userName)} · ${esc(
               typeName(r.type)
-            )}">${esc(r.userName)}</div>`;
+            )} · ${esc(deptName)}">${esc(r.userName)}</div>`;
           })
           .join("");
 
         const birthdayChips = dayBirthdays
           .map(
-            (b) =>
-              `<div class="cal-chip cal-chip-birthday" title="Cumpleaños de ${esc(b.name)}">🎂 ${esc(
-                b.name
-              )}</div>`
+            (b) => `
+              <div class="cal-birthday-chip" title="Cumpleaños de ${esc(b.name)}">
+                <div class="cal-birthday-label">🎂 CUMPLEAÑOS</div>
+                <div class="cal-birthday-name">${esc(b.name)}</div>
+              </div>
+            `
           )
           .join("");
 
@@ -749,8 +752,17 @@ function initApp(root) {
       )
       .join("");
 
+    const typeLegend = APP.absenceTypes
+      .map(
+        (t) =>
+          `<span class="type-legend-item"><span class="dept-dot" style="background:${t.color}"></span>${esc(
+            t.name
+          )}</span>`
+      )
+      .join("");
+
     return `
-      <div class="page-header"><h1>Calendario de empresa</h1><p>Ausencias aprobadas de todos los departamentos.</p></div>
+      <div class="page-header"><h1>Calendario de empresa</h1><p>Ausencias aprobadas de todos los departamentos, coloreadas según el motivo. Usa los filtros para elegir qué departamentos ver.</p></div>
       <div class="cal-toolbar">
         <div class="cal-nav">
           <button type="button" class="icon-btn" data-action="cal-prev-month">‹</button>
@@ -759,6 +771,7 @@ function initApp(root) {
         </div>
         <div class="dept-filters">${deptChips}</div>
       </div>
+      <div class="type-legend">${typeLegend}</div>
       <div class="card">
         <div class="cal-grid">
           ${weekdaysHtml}
@@ -1013,47 +1026,49 @@ function initApp(root) {
     `;
   }
 
-  function computeCompanyReport() {
+  function computeTypeWorkerCounts() {
     const year = currentYear();
-    const activeUsers = APP.users.filter((u) => u.active);
-    let totalAllowance = 0;
-    let totalConsumed = 0;
-    let totalRemaining = 0;
-    const perUser = activeUsers.map((u) => {
-      const info = computeAllowance(u, APP.requests, year, APP.config.defaultAllowance);
-      totalAllowance += info.allowance;
-      totalConsumed += info.consumed;
-      totalRemaining += info.remaining;
-      return { user: u, info };
+    const yearStr = String(year);
+    const activeIds = new Set(APP.users.filter((u) => u.active).map((u) => u.id));
+    const byType = APP.absenceTypes.map((t) => {
+      const workerIds = new Set(
+        APP.requests
+          .filter(
+            (r) =>
+              r.type === t.id &&
+              r.status === "approved" &&
+              r.dateFrom.slice(0, 4) === yearStr &&
+              activeIds.has(r.userId)
+          )
+          .map((r) => r.userId)
+      );
+      return { type: t, count: workerIds.size };
     });
-    perUser.sort((a, b) => {
-      const pctA = a.info.allowance > 0 ? a.info.consumed / a.info.allowance : 0;
-      const pctB = b.info.allowance > 0 ? b.info.consumed / b.info.allowance : 0;
-      return pctB - pctA;
-    });
-    return { year, totalAllowance, totalConsumed, totalRemaining, perUser };
+    return { year, totalActive: activeIds.size, byType };
   }
 
-  function computeDepartmentReport() {
+  function computeDepartmentTypeCounts() {
     const year = currentYear();
+    const yearStr = String(year);
     return APP.departments.map((d) => {
       const deptUsers = APP.users.filter((u) => u.active && u.department === d.id);
-      let allowance = 0;
-      let consumed = 0;
-      deptUsers.forEach((u) => {
-        const info = computeAllowance(u, APP.requests, year, APP.config.defaultAllowance);
-        allowance += info.allowance;
-        consumed += info.consumed;
+      const deptUserIds = new Set(deptUsers.map((u) => u.id));
+      const byType = APP.absenceTypes.map((t) => {
+        const workerIds = new Set(
+          APP.requests
+            .filter(
+              (r) =>
+                r.type === t.id &&
+                r.status === "approved" &&
+                r.dateFrom.slice(0, 4) === yearStr &&
+                deptUserIds.has(r.userId)
+            )
+            .map((r) => r.userId)
+        );
+        return { type: t, count: workerIds.size };
       });
-      const pct = allowance > 0 ? Math.round((consumed / allowance) * 100) : 0;
-      return {
-        dept: d,
-        count: deptUsers.length,
-        allowance,
-        consumed,
-        remaining: Math.max(0, allowance - consumed),
-        pct,
-      };
+      const total = byType.reduce((s, x) => s + x.count, 0);
+      return { dept: d, employeeCount: deptUsers.length, byType, total };
     });
   }
 
@@ -1070,67 +1085,82 @@ function initApp(root) {
     `;
   }
 
-  function renderAdminReports() {
-    const company = computeCompanyReport();
-    const companyPct =
-      company.totalAllowance > 0 ? Math.round((company.totalConsumed / company.totalAllowance) * 100) : 0;
-    const deptReport = computeDepartmentReport();
+  function reportStackedBarRow(label, segments, maxTotal) {
+    const total = segments.reduce((s, seg) => s + seg.count, 0);
+    const totalWidthPct = maxTotal > 0 ? Math.min(100, (total / maxTotal) * 100) : 0;
+    const segmentsHtml = segments
+      .filter((seg) => seg.count > 0)
+      .map((seg) => {
+        const widthPct = total > 0 ? (seg.count / total) * 100 : 0;
+        return `<div class="stacked-bar-seg" style="width:${widthPct}%;background:${seg.color}" title="${esc(
+          seg.label
+        )}: ${seg.count}"></div>`;
+      })
+      .join("");
+    return `
+      <div class="report-bar-row">
+        <div class="report-bar-label" title="${esc(label)}">${esc(label)}</div>
+        <div class="report-bar-track"><div class="stacked-bar-fill" style="width:${totalWidthPct}%">${segmentsHtml}</div></div>
+        <div class="report-bar-value mono">${total} trabajador${total === 1 ? "" : "es"}</div>
+      </div>
+    `;
+  }
 
-    const employeeBars = company.perUser
-      .map(({ user, info }) => {
-        const pct = info.allowance > 0 ? Math.round((info.consumed / info.allowance) * 100) : 0;
+  function renderAdminReports() {
+    const company = computeTypeWorkerCounts();
+    const deptReport = computeDepartmentTypeCounts();
+
+    const typeBars = company.byType
+      .map((t) => {
+        const pct = company.totalActive > 0 ? Math.round((t.count / company.totalActive) * 100) : 0;
         return reportBarRow(
-          user.name,
+          t.type.name,
           pct,
-          `${fmtDays(info.consumed)} / ${fmtDays(info.allowance)} días`,
-          "var(--lime-dark)"
+          `${t.count} trabajador${t.count === 1 ? "" : "es"}`,
+          t.type.color
         );
       })
       .join("");
 
+    const maxDeptTotal = Math.max(1, ...deptReport.map((d) => d.total));
+    const typeLegendHtml = APP.absenceTypes
+      .map(
+        (t) =>
+          `<span class="type-legend-item"><span class="dept-dot" style="background:${t.color}"></span>${esc(
+            t.name
+          )}</span>`
+      )
+      .join("");
     const deptBars = deptReport
       .map((d) =>
-        reportBarRow(
-          `${d.dept.name} (${d.count})`,
-          d.pct,
-          `${fmtDays(d.consumed)} / ${fmtDays(d.allowance)} días`,
-          d.dept.color
+        reportStackedBarRow(
+          `${d.dept.name} (${d.employeeCount})`,
+          d.byType.map((t) => ({ label: t.type.name, count: t.count, color: t.type.color })),
+          maxDeptTotal
         )
       )
       .join("");
 
     return `
-      <div class="page-header" style="margin-bottom:12px"><h1 style="font-size:16px">Vacaciones de toda la empresa · ${company.year}</h1></div>
-      <div class="grid grid-3">
-        <div class="card stat-card">
-          <div class="label">Días asignados</div>
-          <div class="value">${fmtDays(company.totalAllowance)}</div>
-        </div>
-        <div class="card stat-card">
-          <div class="label">Días consumidos</div>
-          <div class="value">${fmtDays(company.totalConsumed)}</div>
-        </div>
-        <div class="card stat-card">
-          <div class="label">Días disponibles</div>
-          <div class="value accent">${fmtDays(company.totalRemaining)}</div>
-        </div>
+      <div class="page-header" style="margin-bottom:12px">
+        <h1 style="font-size:16px">Trabajadores por motivo de ausencia · ${company.year}</h1>
+        <p>Empleados activos con al menos una solicitud aprobada de cada tipo este año, sobre ${
+          company.totalActive
+        } empleados activos en total.</p>
       </div>
       <div class="card">
-        <div class="progress-track" style="margin-bottom:6px"><div class="progress-fill" style="width:${companyPct}%"></div></div>
-        <div class="faint">${companyPct}% del total de días asignados ya consumido este año</div>
-      </div>
-      <div class="card">
-        <div class="section-title">Uso de vacaciones por empleado</div>
         <div class="report-bars">${
-          employeeBars || `<div class="empty-state">No hay empleados activos.</div>`
+          typeBars || `<div class="empty-state">No hay empleados activos.</div>`
         }</div>
       </div>
       <div class="card">
-        <div class="section-title">Uso de vacaciones por departamento</div>
+        <div class="section-title">Por departamento</div>
+        <div class="type-legend" style="margin-bottom:14px">${typeLegendHtml}</div>
         <div class="report-bars">${
           deptBars || `<div class="empty-state">No hay departamentos con empleados.</div>`
         }</div>
       </div>
+      <div class="faint">El listado de días de vacaciones restantes por trabajador se mantiene en la pestaña "Empleados".</div>
     `;
   }
 
