@@ -22,6 +22,8 @@ const STATUS_BADGE_CLASS = {
   cancelled: "badge-cancelled",
 };
 
+const GLOBAL_AWAY_LIMIT_PCT = 30;
+
 function esc(value) {
   if (value == null) return "";
   return String(value)
@@ -922,6 +924,11 @@ function initApp(root) {
             <div style="display:flex;gap:6px">
               <button type="button" class="btn btn-outline btn-sm" data-action="open-edit-worker-modal" data-id="${u.id}">Editar</button>
               <button type="button" class="btn btn-outline btn-sm" data-action="open-reset-password-modal" data-id="${u.id}">Contraseña</button>
+              ${
+                u.id !== APP.me.id
+                  ? `<button type="button" class="btn btn-danger btn-sm" data-action="open-delete-worker-modal" data-id="${u.id}">Eliminar</button>`
+                  : ""
+              }
             </div>
           </td>
         </tr>
@@ -1106,6 +1113,44 @@ function initApp(root) {
     `;
   }
 
+  function computeGlobalAwayGauge() {
+    const todayISO = formatISODate(new Date());
+    const activeUsers = APP.users.filter((u) => u.active);
+    const awayUserIds = new Set(
+      APP.requests
+        .filter((r) => r.status === "approved" && r.dateFrom <= todayISO && r.dateTo >= todayISO)
+        .map((r) => r.userId)
+    );
+    const awayCount = activeUsers.filter((u) => awayUserIds.has(u.id)).length;
+    const total = activeUsers.length;
+    const pct = total > 0 ? Math.round((awayCount / total) * 100) : 0;
+    return { awayCount, total, pct, overLimit: pct > GLOBAL_AWAY_LIMIT_PCT };
+  }
+
+  function renderGlobalGauge() {
+    const g = computeGlobalAwayGauge();
+    return `
+      <div class="card">
+        <div class="flex-between">
+          <div class="section-title" style="margin-bottom:0">Varómetro global de ausencias (hoy)</div>
+          <span class="badge ${g.overLimit ? "badge-rejected" : "badge-approved"}">${
+      g.overLimit ? "Supera el límite" : "Dentro del límite"
+    }</span>
+        </div>
+        <p class="faint" style="margin:6px 0 14px">Trabajadores de vacaciones, de baja o ausentes por cualquier motivo hoy, sobre el total de la plantilla activa. Límite recomendado: ${GLOBAL_AWAY_LIMIT_PCT}%.</p>
+        <div class="gauge-wrap">
+          <div class="gauge-track"><div class="gauge-fill ${
+            g.overLimit ? "warn" : "ok"
+          }" style="width:${Math.min(100, g.pct)}%"></div></div>
+          <div class="gauge-marker" style="left:${GLOBAL_AWAY_LIMIT_PCT}%" title="Límite: ${GLOBAL_AWAY_LIMIT_PCT}%"></div>
+        </div>
+        <div class="faint" style="margin-top:18px">${g.awayCount} de ${g.total} trabajadores ausentes hoy · <b class="${
+      g.overLimit ? "gauge-pct-warn" : "gauge-pct-ok"
+    }">${g.pct}%</b></div>
+      </div>
+    `;
+  }
+
   function renderAdminReports() {
     const company = computeTypeWorkerCounts();
     const deptReport = computeDepartmentTypeCounts();
@@ -1142,6 +1187,7 @@ function initApp(root) {
       .join("");
 
     return `
+      ${renderGlobalGauge()}
       <div class="page-header" style="margin-bottom:12px">
         <h1 style="font-size:16px">Trabajadores por motivo de ausencia · ${company.year}</h1>
         <p>Empleados activos con al menos una solicitud aprobada de cada tipo este año, sobre ${
@@ -1177,6 +1223,7 @@ function initApp(root) {
     else if (m.type === "addWorker") inner = renderWorkerFormModal(null);
     else if (m.type === "editWorker") inner = renderWorkerFormModal(APP.users.find((u) => u.id === m.userId));
     else if (m.type === "resetPassword") inner = renderResetPasswordModal();
+    else if (m.type === "deleteWorker") inner = renderDeleteWorkerModal();
     else if (m.type === "addHoliday") inner = renderAddHolidayModal();
     else if (m.type === "changePassword") inner = renderChangePasswordModal();
     else if (m.type === "importHolidays") {
@@ -1367,6 +1414,23 @@ function initApp(root) {
     `;
   }
 
+  function renderDeleteWorkerModal() {
+    const user = APP.users.find((u) => u.id === APP.modal.userId);
+    return `
+      <div class="modal-title">Eliminar trabajador</div>
+      <div class="modal-sub">Esta acción no se puede deshacer. Se eliminará la cuenta y todo el historial de solicitudes de ${
+        user ? `<b>${esc(user.name)}</b> (${esc(user.username)})` : "este trabajador"
+      }.</div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" data-action="confirm-delete-worker" ${
+          APP.modalLoading ? "disabled" : ""
+        }>${APP.modalLoading ? "Eliminando…" : "Eliminar definitivamente"}</button>
+      </div>
+    `;
+  }
+
   function renderAddHolidayModal() {
     return `
       <div class="modal-title">Nuevo festivo</div>
@@ -1528,6 +1592,14 @@ function initApp(root) {
         APP.modal = { type: "resetPassword", userId: el.dataset.id };
         APP.modalError = "";
         render();
+        break;
+      case "open-delete-worker-modal":
+        APP.modal = { type: "deleteWorker", userId: el.dataset.id };
+        APP.modalError = "";
+        render();
+        break;
+      case "confirm-delete-worker":
+        handleDeleteWorker();
         break;
       case "open-add-holiday-modal":
         APP.modal = { type: "addHoliday" };
@@ -1912,6 +1984,31 @@ function initApp(root) {
       APP.modal = null;
       showBanner("success", "Contraseña restablecida");
       render();
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleDeleteWorker() {
+    const userId = APP.modal && APP.modal.userId;
+    if (!userId) return;
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido eliminar el trabajador";
+        render();
+        return;
+      }
+      APP.modal = null;
+      showBanner("success", "Trabajador eliminado");
+      await loadBootstrap(true);
     } catch (err) {
       APP.modalLoading = false;
       APP.modalError = "Error de conexión";

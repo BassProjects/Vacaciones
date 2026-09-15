@@ -764,6 +764,40 @@ td.wrap { white-space: normal; }
 .stacked-bar-seg { height: 100%; box-sizing: border-box; }
 .stacked-bar-seg:not(:last-child) { border-right: 2px solid var(--surface); }
 
+/* ---------- Varómetro global ---------- */
+
+.gauge-wrap { position: relative; margin: 4px 0; }
+.gauge-track {
+  height: 16px;
+  background: var(--surface-soft);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.gauge-fill { height: 100%; border-radius: 20px; }
+.gauge-fill.ok { background: var(--green-fg); }
+.gauge-fill.warn { background: var(--red-fg); }
+.gauge-marker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.55;
+}
+.gauge-marker::after {
+  content: "Límite";
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.gauge-pct-ok { color: var(--green-fg); }
+.gauge-pct-warn { color: var(--red-fg); }
+
 @media (max-width: 880px) {
   .report-bar-row { grid-template-columns: 1fr; gap: 4px; }
   .report-bar-value { text-align: left; }

@@ -58,3 +58,54 @@ export async function PATCH(req, { params }) {
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(req, { params }) {
+  await ensureSchema();
+  const me = await getCurrentUser();
+  if (!me || me.role !== "admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
+  const { id } = params;
+  if (id === me.id) {
+    return NextResponse.json(
+      { error: "No puedes eliminar tu propio usuario" },
+      { status: 400 }
+    );
+  }
+
+  const pool = getPool();
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+  const target = rows[0];
+  if (!target) {
+    return NextResponse.json({ error: "Trabajador no encontrado" }, { status: 404 });
+  }
+
+  if (target.role === "admin") {
+    const { rows: otherAdmins } = await pool.query(
+      "SELECT COUNT(*)::int AS c FROM users WHERE role = 'admin' AND active = TRUE AND id <> $1",
+      [id]
+    );
+    if (otherAdmins[0].c === 0) {
+      return NextResponse.json(
+        { error: "No puedes eliminar al último superusuario activo" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM requests WHERE user_id = $1", [id]);
+    await client.query("DELETE FROM users WHERE id = $1", [id]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  return NextResponse.json({ ok: true });
+}
