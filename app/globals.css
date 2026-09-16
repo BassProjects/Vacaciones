@@ -836,6 +836,31 @@ td.wrap { white-space: normal; }
 .import-row:last-child { border-bottom: none; }
 .import-row input { width: auto; }
 
+.import-row-calamari {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.import-row-calamari:last-child { border-bottom: none; }
+.import-row-calamari input { margin-top: 3px; width: auto; }
+.import-row-disabled { opacity: 0.5; }
+
+.timesheet-io-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
+.export-timesheet-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.export-timesheet-form input[type="month"],
+.export-timesheet-form select {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
 /* ---------- Informes (gráficas) ---------- */
 
 .report-bars { display: flex; flex-direction: column; gap: 10px; }

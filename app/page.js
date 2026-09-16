@@ -118,6 +118,11 @@ function currentYear() {
   return new Date().getFullYear();
 }
 
+function currentYearMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function computeAllowance(user, requests, year, defaultAllowance) {
   const allowance =
     user.allowanceOverride != null ? Number(user.allowanceOverride) : Number(defaultAllowance);
@@ -1298,6 +1303,23 @@ function initApp(root) {
         }</div>
       </div>
       <div class="faint">El listado de días de vacaciones restantes por trabajador se mantiene en la pestaña "Empleados".</div>
+      <div class="card">
+        <div class="section-title">Histórico (Calamari)</div>
+        <p class="faint" style="margin-bottom:12px">Importa ausencias antiguas desde una exportación "Detailed timesheet" de Calamari, o exporta el histórico de este sistema en el mismo formato.</p>
+        <div class="timesheet-io-row">
+          <button type="button" class="btn btn-outline btn-sm" data-action="open-import-calamari-modal">Importar histórico de Calamari</button>
+          <form method="GET" action="/api/reports/timesheet-export" target="_blank" class="export-timesheet-form">
+            <input type="month" name="ym" value="${currentYearMonth()}" required />
+            <select name="userId">
+              <option value="all">Todos los trabajadores</option>
+              ${APP.users
+                .map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`)
+                .join("")}
+            </select>
+            <button type="submit" class="btn btn-outline btn-sm">Exportar Excel</button>
+          </form>
+        </div>
+      </div>
     `;
   }
 
@@ -1319,6 +1341,9 @@ function initApp(root) {
     else if (m.type === "changePassword") inner = renderChangePasswordModal();
     else if (m.type === "importHolidays") {
       inner = renderImportHolidaysModal();
+      wide = true;
+    } else if (m.type === "importCalamari") {
+      inner = renderImportCalamariModal();
       wide = true;
     }
     return `<div class="modal-overlay"><div class="modal-box${wide ? " modal-box-wide" : ""}">${inner}</div></div>`;
@@ -1569,7 +1594,7 @@ function initApp(root) {
         <div class="import-review-list">${list}</div>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" data-action="confirm-import-holidays" ${
+          <button type="button" class="btn btn-primary import-confirm-btn" data-action="confirm-import-holidays" ${
             APP.modalLoading ? "disabled" : ""
           }>${APP.modalLoading ? "Importando…" : `Importar (${m.selected.size})`}</button>
         </div>
@@ -1584,6 +1609,62 @@ function initApp(root) {
         <div class="field">
           <label>Archivo</label>
           <input type="file" name="file" accept=".xlsx,.xls,.csv,.pdf" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
+      APP.modalLoading ? "Analizando…" : "Analizar archivo"
+    }</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderImportCalamariModal() {
+    const m = APP.modal;
+    if (m.step === "review") {
+      const list = m.periods
+        .map((p, i) => {
+          const matched = Boolean(p.matchedUserId);
+          const who = p.matchedUserName || p.name || p.email;
+          return `
+        <label class="import-row-calamari${matched ? "" : " import-row-disabled"}">
+          <input type="checkbox" data-action="toggle-import-row" data-index="${i}" ${
+            m.selected.has(i) ? "checked" : ""
+          } ${matched ? "" : "disabled"} />
+          <span>
+            <div><b>${esc(who)}</b> · ${esc(typeName(p.type))}</div>
+            <div class="faint mono">${fmtDate(p.dateFrom)}${
+            p.dateFrom !== p.dateTo ? ` → ${fmtDate(p.dateTo)}` : ""
+          } · ${p.days} día(s)${matched ? "" : " · sin usuario con ese correo (" + esc(p.email) + ")"}</div>
+          </span>
+        </label>
+      `;
+        })
+        .join("");
+
+      return `
+        <div class="modal-title">Revisa el histórico encontrado</div>
+        <div class="modal-sub">${m.periods.length} ausencia(s) detectadas en el archivo. Solo se pueden importar las de trabajadores con correo coincidente. Se guardarán como aprobadas.</div>
+        ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+        <div class="import-review-list">${list}</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="button" class="btn btn-primary import-confirm-btn" data-action="confirm-import-calamari" ${
+            APP.modalLoading ? "disabled" : ""
+          }>${APP.modalLoading ? "Importando…" : `Importar (${m.selected.size})`}</button>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="modal-title">Importar histórico de Calamari</div>
+      <div class="modal-sub">Sube una exportación "Detailed timesheet" de Calamari (.xlsx). Se emparejará cada fila con un trabajador existente por correo electrónico. Podrás revisar el resultado antes de guardarlo.</div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <form data-action="import-calamari-form">
+        <div class="field">
+          <label>Archivo</label>
+          <input type="file" name="file" accept=".xlsx,.xls" required />
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
@@ -1739,12 +1820,20 @@ function initApp(root) {
       case "confirm-import-holidays":
         handleConfirmImportHolidays();
         break;
+      case "open-import-calamari-modal":
+        APP.modal = { type: "importCalamari", step: "upload" };
+        APP.modalError = "";
+        render();
+        break;
+      case "confirm-import-calamari":
+        handleConfirmImportCalamari();
+        break;
       case "toggle-import-row": {
         const idx = Number(el.dataset.index);
         if (APP.modal && APP.modal.selected) {
           if (el.checked) APP.modal.selected.add(idx);
           else APP.modal.selected.delete(idx);
-          const btn = root.querySelector('[data-action="confirm-import-holidays"]');
+          const btn = root.querySelector(".import-confirm-btn");
           if (btn) btn.textContent = `Importar (${APP.modal.selected.size})`;
         }
         break;
@@ -1765,6 +1854,8 @@ function initApp(root) {
     switch (action) {
       case "import-holidays-form":
         return handleImportHolidaysUpload(fd);
+      case "import-calamari-form":
+        return handleImportCalamariUpload(fd);
       case "login-form":
         return handleLogin(fd);
       case "request-form":
@@ -2217,6 +2308,81 @@ function initApp(root) {
       }
       APP.modal = null;
       showBanner("success", `${data.imported} festivo(s) importado(s)`);
+      await loadBootstrap(true);
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleImportCalamariUpload(fd) {
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/reports/calamari-import", { method: "POST", body: fd });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido analizar el archivo";
+        render();
+        return;
+      }
+      const matchedIndexes = data.periods
+        .map((p, i) => (p.matchedUserId ? i : null))
+        .filter((i) => i !== null);
+      APP.modal = {
+        type: "importCalamari",
+        step: "review",
+        periods: data.periods,
+        selected: new Set(matchedIndexes),
+      };
+      render();
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleConfirmImportCalamari() {
+    const m = APP.modal;
+    if (!m || !m.periods) return;
+    const selected = m.periods
+      .filter((_, i) => m.selected.has(i))
+      .map((p) => ({
+        userId: p.matchedUserId,
+        type: p.type,
+        dateFrom: p.dateFrom,
+        dateTo: p.dateTo,
+        days: p.days,
+        halfStart: p.halfStart,
+        halfEnd: p.halfEnd,
+      }));
+    if (!selected.length) {
+      APP.modalError = "Selecciona al menos una ausencia";
+      render();
+      return;
+    }
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/reports/calamari-import/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periods: selected }),
+      });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido importar";
+        render();
+        return;
+      }
+      APP.modal = null;
+      showBanner("success", `${data.imported} ausencia(s) importada(s)`);
       await loadBootstrap(true);
     } catch (err) {
       APP.modalLoading = false;
