@@ -88,6 +88,19 @@ export async function GET() {
     day: Number(u.birth_date.slice(8, 10)),
   }));
 
+  // Plantilla básica (nombre, departamento, rol): visible para todos los
+  // roles para mostrar el listado de compañeros en el calendario, sin
+  // exponer datos sensibles (email, usuario, fecha de nacimiento, etc.).
+  const { rows: rosterRows } = await pool.query(
+    "SELECT id, name, department, role FROM users WHERE active = TRUE ORDER BY name ASC"
+  );
+  const roster = rosterRows.map((u) => ({
+    id: u.id,
+    name: u.name,
+    department: u.department,
+    role: u.role,
+  }));
+
   return NextResponse.json({
     me,
     config: { defaultAllowance },
@@ -97,5 +110,6 @@ export async function GET() {
     requests,
     users,
     birthdays,
+    roster,
   });
 }

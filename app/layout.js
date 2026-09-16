@@ -3,8 +3,8 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Vacaciones · Electropolis",
-  description: "Gestión de vacaciones y ausencias de Electropolis",
+  title: "Vacaciones · Sepiamary",
+  description: "Gestión de vacaciones y ausencias de Sepiamary",
 };
 
 export default function RootLayout({ children }) {

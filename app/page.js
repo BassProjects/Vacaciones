@@ -35,7 +35,7 @@ function esc(value) {
 }
 
 function wordmarkHtml(size, onDark) {
-  return `<span class="wordmark ${onDark ? "on-dark" : ""}" style="font-size:${size}"><span class="wm-navy">electr</span><span class="wm-ring"></span><span class="wm-lime">polis</span></span>`;
+  return `<span class="wordmark ${onDark ? "on-dark" : ""}" style="font-size:${size}"><span class="wm-navy">sepia</span><span class="wm-lime">mary</span></span>`;
 }
 
 function eyeIconSvg(crossedOut) {
@@ -149,6 +149,7 @@ function initApp(root) {
     requests: [],
     users: [],
     birthdays: [],
+    roster: [],
     loading: true,
     route: "perfil",
     profileTab: "solicitar",
@@ -237,6 +238,7 @@ function initApp(root) {
       APP.requests = data.requests;
       APP.users = data.users;
       APP.birthdays = data.birthdays || [];
+      APP.roster = data.roster || [];
       APP.loading = false;
       if (silent && APP.modal) {
         // No se reconstruye la interfaz mientras hay un formulario modal
@@ -765,20 +767,83 @@ function initApp(root) {
 
     return `
       <div class="page-header"><h1>Calendario de empresa</h1><p>Ausencias aprobadas de todos los departamentos, coloreadas según el motivo. Usa los filtros para elegir qué departamentos ver.</p></div>
-      <div class="cal-toolbar">
-        <div class="cal-nav">
-          <button type="button" class="icon-btn" data-action="cal-prev-month">‹</button>
-          <div class="cal-title">${MONTH_NAMES_ES[month]} ${year}</div>
-          <button type="button" class="icon-btn" data-action="cal-next-month">›</button>
+      <div class="calendar-layout">
+        <div class="calendar-main">
+          <div class="cal-toolbar">
+            <div class="cal-nav">
+              <button type="button" class="icon-btn" data-action="cal-prev-month">‹</button>
+              <div class="cal-title">${MONTH_NAMES_ES[month]} ${year}</div>
+              <button type="button" class="icon-btn" data-action="cal-next-month">›</button>
+            </div>
+            <div class="dept-filters">${deptChips}</div>
+          </div>
+          <div class="type-legend">${typeLegend}</div>
+          <div class="card">
+            <div class="cal-grid">
+              ${weekdaysHtml}
+              ${dayCellsHtml}
+            </div>
+          </div>
         </div>
-        <div class="dept-filters">${deptChips}</div>
+        <div class="calendar-side">${renderRosterPanel()}</div>
       </div>
-      <div class="type-legend">${typeLegend}</div>
-      <div class="card">
-        <div class="cal-grid">
-          ${weekdaysHtml}
-          ${dayCellsHtml}
+    `;
+  }
+
+  function renderRosterPanel() {
+    const todayISO = formatISODate(new Date());
+    const onVacationTodayIds = new Set(
+      APP.requests
+        .filter(
+          (r) =>
+            r.type === "vacaciones" &&
+            r.status === "approved" &&
+            r.dateFrom <= todayISO &&
+            r.dateTo >= todayISO
+        )
+        .map((r) => r.userId)
+    );
+
+    function rosterGroupHtml(title, color, members) {
+      if (!members.length) return "";
+      const items = members
+        .map((u) => {
+          const away = onVacationTodayIds.has(u.id);
+          return `
+            <div class="roster-item ${away ? "roster-item-away" : ""}">
+              <div class="roster-name">${esc(u.name)}${
+            u.role === "manager" ? ` <span class="roster-tag">· Jefe/a</span>` : ""
+          }</div>
+              ${away ? `<div class="roster-away-badge">🌴 De vacaciones hoy</div>` : ""}
+            </div>
+          `;
+        })
+        .join("");
+      return `
+        <div class="roster-group">
+          <div class="roster-group-title"><span class="dept-dot" style="background:${color}"></span>${esc(
+        title
+      )}</div>
+          ${items}
         </div>
+      `;
+    }
+
+    const deptGroups = APP.departments
+      .map((d) => rosterGroupHtml(d.name, d.color, APP.roster.filter((u) => u.department === d.id)))
+      .join("");
+    const noDeptGroup = rosterGroupHtml(
+      "Administración",
+      "#8b9a8c",
+      APP.roster.filter((u) => !u.department)
+    );
+
+    return `
+      <div class="card roster-card">
+        <div class="section-title">Plantilla</div>
+        <div class="faint" style="margin-bottom:12px">Se remarcan quienes están de vacaciones hoy.</div>
+        ${deptGroups}${noDeptGroup || ""}
+        ${!APP.roster.length ? `<div class="empty-state">No hay empleados activos.</div>` : ""}
       </div>
     `;
   }

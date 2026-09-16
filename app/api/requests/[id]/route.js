@@ -88,7 +88,7 @@ export async function PATCH(req, { params }) {
       <p>Hola ${worker.name},</p>
       <p>Tu solicitud de <strong>${typeName}</strong> del ${updated.date_from} al ${updated.date_to} ha sido <strong>${statusText}</strong> por ${me.name}.</p>
       ${updated.decision_note ? `<p>Motivo: ${updated.decision_note}</p>` : ""}
-      <p>Un saludo,<br/>Electropolis</p>
+      <p>Un saludo,<br/>Sepiamary</p>
     `;
     await sendMail({ to: worker.email, subject, html });
   }

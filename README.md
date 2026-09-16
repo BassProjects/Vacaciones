@@ -1,6 +1,6 @@
-# Vacaciones Electropolis
+# Vacaciones Sepiamary
 
-Aplicación web para gestionar las vacaciones y ausencias de los empleados de Electropolis.
+Aplicación web para gestionar las vacaciones y ausencias de los empleados de Sepiamary.
 
 ## Stack
 
