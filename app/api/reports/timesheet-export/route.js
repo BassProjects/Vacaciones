@@ -78,7 +78,6 @@ export async function GET(req) {
 
   const header = [
     "Nombre",
-    "Apellido",
     "Equipos",
     "E-mail",
     "",
@@ -93,8 +92,6 @@ export async function GET(req) {
   const sheetRows = [header];
 
   for (const u of users) {
-    const [firstName, ...rest] = u.name.split(" ");
-    const lastName = rest.join(" ");
     const userRequests = requestRows.filter((r) => r.user_id === u.id);
 
     const rowValues = {};
@@ -136,8 +133,7 @@ export async function GET(req) {
       const values = rowValues[def.key];
       const sum = values.reduce((s, v) => s + v, 0);
       sheetRows.push([
-        firstName,
-        lastName,
+        u.name,
         departmentNameById[u.department] || "",
         u.email || "",
         def.label,
