@@ -96,6 +96,17 @@ function initials(name) {
     .join("");
 }
 
+function avatarHtml(user, size) {
+  const px = size || 34;
+  const fontPx = Math.round(px * 0.4);
+  const img = user && user.avatarUrl
+    ? `<img class="avatar-img" src="${esc(user.avatarUrl)}" alt="" onerror="this.remove()" />`
+    : "";
+  return `<span class="avatar" style="width:${px}px;height:${px}px;font-size:${fontPx}px">${img}${esc(
+    initials(user && user.name)
+  )}</span>`;
+}
+
 function roleLabel(role) {
   return (
     { worker: "Trabajador", manager: "Encargado de departamento", admin: "Superusuario" }[role] ||
@@ -398,7 +409,7 @@ function initApp(root) {
     return `
       <div class="sidebar-foot">
         <div class="sidebar-user">
-          <div class="avatar">${esc(initials(APP.me.name))}</div>
+          ${avatarHtml(APP.me, 34)}
           <div class="sidebar-user-info">
             <div class="sidebar-user-name">${esc(APP.me.name)}</div>
             <div class="sidebar-user-role">${roleLabel(APP.me.role)}</div>
@@ -709,9 +720,21 @@ function initApp(root) {
             const type = APP.absenceTypes.find((t) => t.id === r.type);
             const color = type ? type.color : "#888";
             const deptName = APP.departments.find((d) => d.id === r.department)?.name || r.department;
-            return `<div class="cal-chip" style="background:${color}" title="${esc(r.userName)} · ${esc(
-              typeName(r.type)
-            )} · ${esc(deptName)}">${esc(r.userName)}</div>`;
+            const rosterUser = APP.roster.find((u) => u.id === r.userId);
+            return `
+              <div class="cal-chip-wrap" data-action="toggle-chip-popover">
+                <div class="cal-chip" style="background:${color}">${esc(r.userName)}</div>
+                <div class="cal-chip-popover">
+                  ${avatarHtml(rosterUser || { name: r.userName }, 48)}
+                  <div class="popover-name">${esc(r.userName)}</div>
+                  <div class="popover-type">${esc(typeName(r.type))} · ${esc(deptName)}</div>
+                  <div class="popover-dates">${fmtDate(r.dateFrom).slice(0, 5)} – ${fmtDate(
+              r.dateTo
+            ).slice(0, 5)}</div>
+                  <div class="popover-status">Aprobado</div>
+                </div>
+              </div>
+            `;
           })
           .join("");
 
@@ -811,10 +834,13 @@ function initApp(root) {
           const away = onVacationTodayIds.has(u.id);
           return `
             <div class="roster-item ${away ? "roster-item-away" : ""}">
-              <div class="roster-name">${esc(u.name)}${
+              ${avatarHtml(u, 26)}
+              <div class="roster-item-text">
+                <div class="roster-name">${esc(u.name)}${
             u.role === "manager" ? ` <span class="roster-tag">· Jefe/a</span>` : ""
           }</div>
-              ${away ? `<div class="roster-away-badge">🌴 De vacaciones hoy</div>` : ""}
+                ${away ? `<div class="roster-away-badge">🌴 De vacaciones hoy</div>` : ""}
+              </div>
             </div>
           `;
         })
@@ -1407,7 +1433,7 @@ function initApp(root) {
         </div>
         <div class="field">
           <label>Email</label>
-          <input type="email" name="email" value="${isEdit ? esc(user.email || "") : ""}" />
+          <input type="email" name="email" value="${isEdit ? esc(user.email || "") : ""}" required />
         </div>
         ${
           !isEdit
@@ -1588,9 +1614,21 @@ function initApp(root) {
 
   function onClick(e) {
     const el = e.target.closest("[data-action]");
-    if (!el || el.tagName === "FORM") return;
+    if (!el || el.tagName === "FORM") {
+      // Clic fuera de cualquier chip: cierra los popovers de ausencias abiertos.
+      if (!e.target.closest(".cal-chip-popover")) {
+        root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
+      }
+      return;
+    }
     const action = el.dataset.action;
     switch (action) {
+      case "toggle-chip-popover": {
+        const wasOpen = el.classList.contains("popover-open");
+        root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
+        if (!wasOpen) el.classList.add("popover-open");
+        break;
+      }
       case "nav":
         APP.route = el.dataset.route;
         APP.mobileMenuOpen = false;

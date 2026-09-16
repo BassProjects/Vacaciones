@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPool, ensureSchema } from "@/lib/db";
 import { getCurrentUser, rowToUser } from "@/lib/session";
 import { DEPARTMENTS, ABSENCE_TYPES } from "@/lib/constants";
+import { gravatarUrl } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -88,17 +89,19 @@ export async function GET() {
     day: Number(u.birth_date.slice(8, 10)),
   }));
 
-  // Plantilla básica (nombre, departamento, rol): visible para todos los
-  // roles para mostrar el listado de compañeros en el calendario, sin
-  // exponer datos sensibles (email, usuario, fecha de nacimiento, etc.).
+  // Plantilla básica (nombre, departamento, rol, avatar): visible para
+  // todos los roles para mostrar el listado de compañeros en el
+  // calendario, sin exponer datos sensibles (el correo nunca se envía
+  // en crudo, solo el avatar ya derivado de él).
   const { rows: rosterRows } = await pool.query(
-    "SELECT id, name, department, role FROM users WHERE active = TRUE ORDER BY name ASC"
+    "SELECT id, name, department, role, email FROM users WHERE active = TRUE ORDER BY name ASC"
   );
   const roster = rosterRows.map((u) => ({
     id: u.id,
     name: u.name,
     department: u.department,
     role: u.role,
+    avatarUrl: gravatarUrl(u.email),
   }));
 
   return NextResponse.json({

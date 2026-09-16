@@ -35,6 +35,12 @@ export async function POST(req) {
       { status: 400 }
     );
   }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+    return NextResponse.json(
+      { error: "El correo electrónico es obligatorio y debe ser válido" },
+      { status: 400 }
+    );
+  }
 
   const pool = getPool();
   const { rows: existing } = await pool.query(
@@ -54,7 +60,7 @@ export async function POST(req) {
     [
       id,
       name,
-      email || null,
+      String(email).trim(),
       String(username).trim(),
       hash,
       salt,

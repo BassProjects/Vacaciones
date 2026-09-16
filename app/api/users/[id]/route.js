@@ -25,10 +25,19 @@ export async function PATCH(req, { params }) {
   if (birthDate !== undefined && birthDate !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     return NextResponse.json({ error: "Fecha de nacimiento no válida" }, { status: 400 });
   }
+  if (
+    email !== undefined &&
+    (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim()))
+  ) {
+    return NextResponse.json(
+      { error: "El correo electrónico es obligatorio y debe ser válido" },
+      { status: 400 }
+    );
+  }
 
   const next = {
     name: name !== undefined && name !== "" ? name : current.name,
-    email: email !== undefined ? email || null : current.email,
+    email: email !== undefined ? String(email).trim() : current.email,
     department: department !== undefined ? department || null : current.department,
     role: role !== undefined ? role : current.role,
     allowance_override:
