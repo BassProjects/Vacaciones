@@ -96,15 +96,38 @@ function initials(name) {
     .join("");
 }
 
+const AVATAR_COLORS = [
+  "#772222",
+  "#773e22",
+  "#4d7722",
+  "#227722",
+  "#22774d",
+  "#226277",
+  "#224577",
+  "#452277",
+  "#772262",
+  "#77223e",
+];
+
+function avatarColor(name) {
+  const key = (name || "").trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
 function avatarHtml(user, size) {
   const px = size || 34;
   const fontPx = Math.round(px * 0.4);
+  const name = user && user.name;
   const img = user && user.avatarUrl
     ? `<img class="avatar-img" src="${esc(user.avatarUrl)}" alt="" onerror="this.remove()" />`
     : "";
-  return `<span class="avatar" style="width:${px}px;height:${px}px;font-size:${fontPx}px">${img}${esc(
-    initials(user && user.name)
-  )}</span>`;
+  return `<span class="avatar" style="width:${px}px;height:${px}px;font-size:${fontPx}px;background:${avatarColor(
+    name
+  )};color:#fff">${img}${esc(initials(name))}</span>`;
 }
 
 function fmtBytes(n) {
