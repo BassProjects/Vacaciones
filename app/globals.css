@@ -660,8 +660,7 @@ td.wrap { white-space: normal; }
   transition: opacity 0.12s ease;
   z-index: 60;
 }
-.cal-chip-wrap:hover .cal-chip-popover,
-.cal-chip-wrap.popover-open .cal-chip-popover {
+.cal-chip-wrap:hover .cal-chip-popover {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;

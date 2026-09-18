@@ -778,7 +778,6 @@ function initApp(root) {
         );
         const visible = dayRequests.slice(0, 3);
         const extra = dayRequests.length - visible.length;
-        const canOpenDetail = APP.me.role === "manager" || APP.me.role === "admin";
         const chips = visible
           .map((r) => {
             const type = APP.absenceTypes.find((t) => t.id === r.type);
@@ -786,9 +785,7 @@ function initApp(root) {
             const deptName = APP.departments.find((d) => d.id === r.department)?.name || r.department;
             const rosterUser = APP.roster.find((u) => u.id === r.userId);
             return `
-              <div class="cal-chip-wrap" data-action="${
-                canOpenDetail ? "open-request-detail" : "toggle-chip-popover"
-              }" ${canOpenDetail ? `data-id="${esc(r.id)}"` : ""}>
+              <div class="cal-chip-wrap" data-action="open-request-detail" data-id="${esc(r.id)}">
                 <div class="cal-chip" style="background:${color}">${esc(r.userName)}</div>
                 <div class="cal-chip-popover">
                   ${avatarHtml(rosterUser || { name: r.userName }, 48)}
@@ -2180,10 +2177,7 @@ function initApp(root) {
   function onClick(e) {
     const el = e.target.closest("[data-action]");
     if (!el || el.tagName === "FORM") {
-      // Clic fuera de cualquier chip: cierra los popovers de ausencias abiertos.
-      if (!e.target.closest(".cal-chip-popover")) {
-        root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
-      }
+      // Clic fuera de cualquier popover: lo cierra.
       if (!e.target.closest(".report-value-popover")) {
         root
           .querySelectorAll(".report-value-wrap.popover-open")
@@ -2193,12 +2187,6 @@ function initApp(root) {
     }
     const action = el.dataset.action;
     switch (action) {
-      case "toggle-chip-popover": {
-        const wasOpen = el.classList.contains("popover-open");
-        root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
-        if (!wasOpen) el.classList.add("popover-open");
-        break;
-      }
       case "toggle-report-popover": {
         const wasOpen = el.classList.contains("popover-open");
         root
