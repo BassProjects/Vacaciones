@@ -843,7 +843,7 @@ td.wrap { white-space: normal; }
   overflow: hidden;
   display: flex;
 }
-.allowance-bar-fill.consumed { height: 100%; background: var(--border); }
+.allowance-bar-fill.consumed { height: 100%; background: #7c93ab; }
 .allowance-bar-fill.selected { height: 100%; background: var(--navy-700); }
 .allowance-bar-fill.selected.over { background: var(--red-fg); }
 .allowance-bar-text {
