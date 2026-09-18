@@ -107,6 +107,25 @@ function avatarHtml(user, size) {
   )}</span>`;
 }
 
+function fmtBytes(n) {
+  const num = Number(n) || 0;
+  if (num < 1024) return `${num} B`;
+  if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+  return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function infoIconSvg() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11"/><line x1="12" y1="8" x2="12" y2="8"/></svg>`;
+}
+
+function paperclipIconSvg() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
+}
+
+function historyIconSvg() {
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3" y2="6"/><line x1="3" y1="12" x2="3" y2="12"/><line x1="3" y1="18" x2="3" y2="18"/></svg>`;
+}
+
 function roleLabel(role) {
   return (
     { worker: "Trabajador", manager: "Encargado de departamento", admin: "Superusuario" }[role] ||
@@ -190,6 +209,7 @@ function initApp(root) {
     modalLoading: false,
     actionLoadingId: null,
     banner: null,
+    detailPanel: null,
   };
 
   let pollTimer = null;
@@ -380,6 +400,7 @@ function initApp(root) {
       </div>
       ${APP.mobileMenuOpen ? renderMobileNav() : ""}
       ${APP.modal ? renderModal() : ""}
+      ${APP.detailPanel ? renderDetailPanel() : ""}
     `;
   }
 
@@ -569,6 +590,13 @@ function initApp(root) {
         <td><span class="badge ${STATUS_BADGE_CLASS[r.status]}">${STATUS_LABELS[r.status]}</span></td>
         <td class="mono">${fmtDateTime(r.requestedAt)}</td>
         <td class="wrap">${r.decisionNote ? esc(r.decisionNote) : '<span class="faint">—</span>'}</td>
+        <td>${
+          r.type === "baja"
+            ? `<button type="button" class="btn btn-outline btn-sm" data-action="open-attachments-modal" data-id="${esc(
+                r.id
+              )}">${paperclipIconSvg()} Justificante</button>`
+            : '<span class="faint">—</span>'
+        }</td>
       </tr>
     `
       )
@@ -578,9 +606,9 @@ function initApp(root) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Tipo</th><th>Fechas</th><th>Días</th><th>Estado</th><th>Solicitada</th><th>Motivo resolución</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Fechas</th><th>Días</th><th>Estado</th><th>Solicitada</th><th>Motivo resolución</th><th>Justificante</th></tr></thead>
             <tbody>${
-              rows || `<tr class="empty-row"><td colspan="6">Todavía no has enviado ninguna solicitud</td></tr>`
+              rows || `<tr class="empty-row"><td colspan="7">Todavía no has enviado ninguna solicitud</td></tr>`
             }</tbody>
           </table>
         </div>
@@ -720,6 +748,7 @@ function initApp(root) {
         );
         const visible = dayRequests.slice(0, 3);
         const extra = dayRequests.length - visible.length;
+        const canOpenDetail = APP.me.role === "manager" || APP.me.role === "admin";
         const chips = visible
           .map((r) => {
             const type = APP.absenceTypes.find((t) => t.id === r.type);
@@ -727,7 +756,9 @@ function initApp(root) {
             const deptName = APP.departments.find((d) => d.id === r.department)?.name || r.department;
             const rosterUser = APP.roster.find((u) => u.id === r.userId);
             return `
-              <div class="cal-chip-wrap" data-action="toggle-chip-popover">
+              <div class="cal-chip-wrap" data-action="${
+                canOpenDetail ? "open-request-detail" : "toggle-chip-popover"
+              }" ${canOpenDetail ? `data-id="${esc(r.id)}"` : ""}>
                 <div class="cal-chip" style="background:${color}">${esc(r.userName)}</div>
                 <div class="cal-chip-popover">
                   ${avatarHtml(rosterUser || { name: r.userName }, 48)}
@@ -1380,6 +1411,8 @@ function initApp(root) {
     } else if (m.type === "importCalamari") {
       inner = renderImportCalamariModal();
       wide = true;
+    } else if (m.type === "attachments") {
+      inner = renderAttachmentsModal(m);
     }
     return `<div class="modal-overlay"><div class="modal-box${wide ? " modal-box-wide" : ""}">${inner}</div></div>`;
   }
@@ -1711,6 +1744,268 @@ function initApp(root) {
     `;
   }
 
+  function renderAttachmentsModal(m) {
+    const request = APP.requests.find((r) => r.id === m.requestId);
+    if (!request) {
+      return `<div class="modal-title">Solicitud no encontrada</div>`;
+    }
+    return `
+      <div class="modal-title">Justificante de baja</div>
+      <div class="modal-sub">${esc(typeName(request.type))} · ${fmtDate(request.dateFrom)} – ${fmtDate(
+      request.dateTo
+    )}</div>
+      ${renderAttachmentsBody(request, m)}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-action="close-modal">Cerrar</button>
+      </div>
+    `;
+  }
+
+  function canUploadAttachment(request) {
+    return (
+      request.type === "baja" &&
+      (APP.me.role === "admin" ||
+        (APP.me.role === "manager" && APP.me.department === request.department) ||
+        APP.me.id === request.userId)
+    );
+  }
+
+  function renderAttachmentsBody(request, ctx) {
+    const items = ctx.attachments || [];
+    const listHtml = items.length
+      ? items
+          .map(
+            (a) => `
+        <div class="attachment-row">
+          <span class="attachment-icon">${a.mimeType.startsWith("image/") ? "🖼️" : "📄"}</span>
+          <div class="attachment-info">
+            <a href="/api/requests/${esc(request.id)}/attachments/${esc(a.id)}" target="_blank" class="attachment-name">${esc(
+              a.filename
+            )}</a>
+            <div class="faint">${fmtBytes(a.sizeBytes)} · ${esc(a.uploadedBy)} · ${fmtDateTime(a.uploadedAt)}</div>
+          </div>
+        </div>
+      `
+          )
+          .join("")
+      : `<div class="empty-state">No se ha adjuntado todavía ningún anexo a la solicitud.</div>`;
+
+    const uploadHtml = canUploadAttachment(request)
+      ? `
+      <form data-action="upload-attachment-form" data-request-id="${esc(request.id)}" class="attachment-upload-form">
+        <input type="file" name="file" accept="image/*,application/pdf" required />
+        <button type="submit" class="btn btn-outline btn-sm" ${ctx.uploading ? "disabled" : ""}>${
+          ctx.uploading ? "Subiendo…" : "Adjuntar justificante"
+        }</button>
+      </form>
+      ${ctx.attachError ? `<div class="form-error">${esc(ctx.attachError)}</div>` : ""}
+    `
+      : "";
+
+    return `
+      <div class="attachment-list">${
+        ctx.attachLoading ? `<div class="empty-state">Cargando…</div>` : listHtml
+      }</div>
+      ${uploadHtml}
+    `;
+  }
+
+  function computeOverlapping(request) {
+    const overlapping = APP.requests.filter(
+      (r) =>
+        r.status === "approved" &&
+        r.dateFrom <= request.dateTo &&
+        r.dateTo >= request.dateFrom
+    );
+    const byId = new Map();
+    overlapping.forEach((r) => {
+      const rosterUser = APP.roster.find((u) => u.id === r.userId);
+      byId.set(r.userId, {
+        id: r.userId,
+        name: r.userName,
+        department: r.department,
+        avatarUrl: rosterUser?.avatarUrl,
+      });
+    });
+    const all = [...byId.values()];
+    const sameDept = all.filter((u) => u.department === request.department);
+    return { all, sameDept };
+  }
+
+  function renderOverlapAvatars(list) {
+    const shown = list.slice(0, 5);
+    const extra = list.length - shown.length;
+    const avatars = shown.map((u) => avatarHtml(u, 26)).join("");
+    const extraHtml = extra > 0 ? `<span class="overlap-extra">+${extra}</span>` : "";
+    return `<div class="overlap-avatars">${avatars}${extraHtml}</div>`;
+  }
+
+  function renderOverlapRow(label, list) {
+    return `
+      <div class="overlap-row">
+        <div class="overlap-row-label">${esc(label)}</div>
+        <div class="overlap-row-right">
+          <span class="overlap-count">${list.length}</span>
+          ${renderOverlapAvatars(list)}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDetailInfo(request) {
+    const type = APP.absenceTypes.find((t) => t.id === request.type);
+    const overlap = computeOverlapping(request);
+    const rosterApprover = APP.roster.find((u) => u.name === request.resolvedBy);
+    const deptName = APP.departments.find((d) => d.id === request.department)?.name || request.department;
+
+    let allowanceHtml = "";
+    if (type && type.consumesAllowance) {
+      const fullUser = APP.users.find((u) => u.id === request.userId);
+      const pseudoUser = {
+        id: request.userId,
+        allowanceOverride: fullUser ? fullUser.allowanceOverride : null,
+      };
+      const year = request.dateFrom.slice(0, 4);
+      const info = computeAllowance(pseudoUser, APP.requests, year, APP.config.defaultAllowance);
+      const pct = info.allowance > 0 ? Math.min(100, Math.round((info.remaining / info.allowance) * 100)) : 0;
+      allowanceHtml = `
+        <div class="detail-field">
+          <div class="detail-field-label">RESTANTE</div>
+          <div class="detail-field-value">${fmtDays(info.remaining)} día${
+        fmtDays(info.remaining) === "1" ? "" : "s"
+      }</div>
+          <div class="detail-progress-track"><div class="detail-progress-fill" style="width:${pct}%"></div></div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="detail-field">
+        <div class="detail-field-label">FECHA</div>
+        <div class="detail-field-value">${fmtDate(request.dateFrom)} - ${fmtDate(request.dateTo)}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-field-label">SOLICITADO</div>
+        <div class="detail-field-value">${fmtDays(request.days)} día${
+      fmtDays(request.days) === "1" ? "" : "s"
+    }</div>
+      </div>
+      ${allowanceHtml}
+      <div class="detail-field">
+        <div class="detail-field-label">APROBACIÓN</div>
+        <div class="detail-approval-row">
+          ${avatarHtml(rosterApprover || { name: request.resolvedBy || "—" }, 30)}
+          <span>${esc(request.resolvedBy || "—")}</span>
+        </div>
+      </div>
+      <div class="detail-overlap-section">
+        <div class="section-title">Ausente al mismo tiempo</div>
+        ${renderOverlapRow(deptName, overlap.sameDept)}
+        ${renderOverlapRow("Toda la organización", overlap.all)}
+      </div>
+    `;
+  }
+
+  function renderDetailHistory(request) {
+    const entries = [{ label: "Creación", at: request.requestedAt, by: request.userName, kind: "created" }];
+    if (request.status !== "pending" && request.resolvedAt) {
+      const label =
+        { approved: "Aprobación final", rejected: "Rechazada", cancelled: "Cancelada" }[request.status] ||
+        "Resuelta";
+      entries.push({
+        label,
+        at: request.resolvedAt,
+        by: request.resolvedBy,
+        kind: request.status === "approved" ? "approved" : "negative",
+      });
+    }
+    const rows = entries
+      .map((e) => {
+        const u = APP.roster.find((x) => x.name === e.by);
+        return `
+        <div class="history-row">
+          <div class="history-icon history-icon-${e.kind}">${
+          e.kind === "created" ? "✎" : e.kind === "approved" ? "✓" : "✕"
+        }</div>
+          <div class="history-main">
+            <div class="history-label">${esc(e.label)}</div>
+            <div class="faint mono">${fmtDateTime(e.at)}</div>
+          </div>
+          <div class="history-by">
+            ${avatarHtml(u || { name: e.by }, 26)}
+            <span>${esc(e.by || "—")}</span>
+          </div>
+        </div>
+      `;
+      })
+      .join("");
+    return `<div class="section-title">Historial</div><div class="history-list">${rows}</div>`;
+  }
+
+  function renderDetailAttachments(request, dp) {
+    return `<div class="section-title">Adjuntos</div>${renderAttachmentsBody(request, dp)}`;
+  }
+
+  function renderDetailPanel() {
+    const dp = APP.detailPanel;
+    const request = APP.requests.find((r) => r.id === dp.requestId);
+    if (!request) return "";
+    const type = APP.absenceTypes.find((t) => t.id === request.type);
+    const rosterUser = APP.roster.find((u) => u.id === request.userId);
+
+    const tabs = [
+      { id: "info", icon: infoIconSvg(), label: "Información" },
+      {
+        id: "adjuntos",
+        icon: paperclipIconSvg(),
+        label: "Adjuntos",
+        count: dp.attachments ? dp.attachments.length : 0,
+      },
+      { id: "historial", icon: historyIconSvg(), label: "Historial" },
+    ];
+    const tabsHtml = tabs
+      .map(
+        (t) => `
+        <button type="button" class="detail-tab-btn ${dp.tab === t.id ? "active" : ""}" data-action="switch-detail-tab" data-tab="${t.id}" title="${esc(
+          t.label
+        )}">
+          ${t.icon}
+          ${t.count != null ? `<span class="detail-tab-count">${t.count}</span>` : ""}
+        </button>
+      `
+      )
+      .join("");
+
+    let body = "";
+    if (dp.tab === "adjuntos") body = renderDetailAttachments(request, dp);
+    else if (dp.tab === "historial") body = renderDetailHistory(request);
+    else body = renderDetailInfo(request);
+
+    return `
+      <div class="detail-panel-overlay">
+        <div class="detail-panel">
+          <div class="detail-panel-topbar">
+            <button type="button" class="detail-close-btn" data-action="close-detail-panel">✕</button>
+          </div>
+          <div class="detail-panel-header">
+            ${avatarHtml(rosterUser || { name: request.userName }, 56)}
+            <div class="detail-panel-headinfo">
+              <span class="badge ${STATUS_BADGE_CLASS[request.status]}">${STATUS_LABELS[
+      request.status
+    ].toUpperCase()}</span>
+              <div class="detail-panel-name">${esc(request.userName)}</div>
+              <div class="detail-panel-type">${esc(type ? type.name : request.type)}</div>
+            </div>
+          </div>
+          <div class="detail-panel-body-wrap">
+            <div class="detail-tab-rail">${tabsHtml}</div>
+            <div class="detail-panel-body">${body}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // ---------------- helpers dependientes de APP ----------------
 
   function deptPillHtml(deptId) {
@@ -1756,6 +2051,43 @@ function initApp(root) {
           .querySelectorAll(".report-value-wrap.popover-open")
           .forEach((w) => w.classList.remove("popover-open"));
         if (!wasOpen) el.classList.add("popover-open");
+        break;
+      }
+      case "open-request-detail": {
+        const reqId = el.dataset.id;
+        APP.detailPanel = {
+          requestId: reqId,
+          tab: "info",
+          attachments: null,
+          attachLoading: false,
+          attachError: "",
+          uploading: false,
+        };
+        render();
+        loadAttachmentsFor(reqId);
+        break;
+      }
+      case "close-detail-panel":
+        APP.detailPanel = null;
+        render();
+        break;
+      case "switch-detail-tab":
+        if (APP.detailPanel) APP.detailPanel.tab = el.dataset.tab;
+        render();
+        break;
+      case "open-attachments-modal": {
+        const reqId = el.dataset.id;
+        APP.modal = {
+          type: "attachments",
+          requestId: reqId,
+          attachments: null,
+          attachLoading: false,
+          attachError: "",
+          uploading: false,
+        };
+        APP.modalError = "";
+        render();
+        loadAttachmentsFor(reqId);
         break;
       }
       case "nav":
@@ -1922,6 +2254,8 @@ function initApp(root) {
         return handleResolveWithNote("reject", fd);
       case "cancel-form":
         return handleResolveWithNote("cancel", fd);
+      case "upload-attachment-form":
+        return handleUploadAttachment(fd, form);
       default:
         return undefined;
     }
@@ -2435,6 +2769,68 @@ function initApp(root) {
     } catch (err) {
       APP.modalLoading = false;
       APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  function getAttachmentsContext(requestId) {
+    if (APP.detailPanel && APP.detailPanel.requestId === requestId) return APP.detailPanel;
+    if (APP.modal && APP.modal.type === "attachments" && APP.modal.requestId === requestId) {
+      return APP.modal;
+    }
+    return null;
+  }
+
+  async function loadAttachmentsFor(requestId) {
+    const ctx = getAttachmentsContext(requestId);
+    if (!ctx) return;
+    ctx.attachLoading = true;
+    render();
+    try {
+      const res = await fetch(`/api/requests/${requestId}/attachments`);
+      const data = await res.json().catch(() => ({}));
+      const ctx2 = getAttachmentsContext(requestId);
+      if (!ctx2) return;
+      ctx2.attachLoading = false;
+      ctx2.attachments = res.ok ? data.attachments : [];
+      render();
+    } catch (err) {
+      const ctx2 = getAttachmentsContext(requestId);
+      if (!ctx2) return;
+      ctx2.attachLoading = false;
+      ctx2.attachments = [];
+      render();
+    }
+  }
+
+  async function handleUploadAttachment(fd, form) {
+    const requestId = form.dataset.requestId;
+    const ctx = getAttachmentsContext(requestId);
+    if (!ctx) return;
+    ctx.uploading = true;
+    ctx.attachError = "";
+    render();
+    try {
+      const res = await fetch(`/api/requests/${requestId}/attachments`, {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      const ctx2 = getAttachmentsContext(requestId);
+      if (!ctx2) return;
+      ctx2.uploading = false;
+      if (!res.ok) {
+        ctx2.attachError = data.error || "No se ha podido subir el archivo";
+        render();
+        return;
+      }
+      showBanner("success", "Justificante adjuntado");
+      await loadAttachmentsFor(requestId);
+    } catch (err) {
+      const ctx2 = getAttachmentsContext(requestId);
+      if (!ctx2) return;
+      ctx2.uploading = false;
+      ctx2.attachError = "Error de conexión";
       render();
     }
   }
