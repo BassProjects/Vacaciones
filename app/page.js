@@ -1776,17 +1776,17 @@ function initApp(root) {
       ? items
           .map(
             (a) => `
-        <div class="attachment-row">
+        <a class="attachment-row" href="/api/requests/${esc(request.id)}/attachments/${esc(
+              a.id
+            )}" target="_blank" rel="noopener" data-action="open-attachment-popup" data-url="/api/requests/${esc(
+              request.id
+            )}/attachments/${esc(a.id)}">
           <span class="attachment-icon">${a.mimeType.startsWith("image/") ? "🖼️" : "📄"}</span>
           <div class="attachment-info">
-            <a href="/api/requests/${esc(request.id)}/attachments/${esc(
-              a.id
-            )}" target="_blank" rel="noopener" class="attachment-name" data-action="open-attachment-popup" data-url="/api/requests/${esc(
-              request.id
-            )}/attachments/${esc(a.id)}">${esc(a.filename)}</a>
+            <div class="attachment-name">${esc(a.filename)}</div>
             <div class="faint">${fmtBytes(a.sizeBytes)} · ${esc(a.uploadedBy)} · ${fmtDateTime(a.uploadedAt)}</div>
           </div>
-        </div>
+        </a>
       `
           )
           .join("")

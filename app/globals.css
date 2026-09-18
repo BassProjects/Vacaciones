@@ -1123,11 +1123,22 @@ td.wrap { white-space: normal; }
 .history-by { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-soft); }
 
 .attachment-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-.attachment-row { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.attachment-row:hover { background: var(--surface-soft); border-color: var(--lime-dark); }
 .attachment-icon { font-size: 20px; }
 .attachment-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.attachment-name { font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; }
-.attachment-name:hover { text-decoration: underline; }
+.attachment-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .attachment-upload-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* ---------- Responsive breakpoint ---------- */
