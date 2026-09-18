@@ -895,6 +895,57 @@ td.wrap { white-space: normal; }
 .stacked-bar-seg { height: 100%; box-sizing: border-box; }
 .stacked-bar-seg:not(:last-child) { border-right: 2px solid var(--surface); }
 
+.report-value-wrap { position: relative; display: inline-block; }
+.report-value-wrap .report-bar-value {
+  cursor: help;
+  border-bottom: 1px dashed var(--text-faint);
+}
+.report-value-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--navy-950);
+  color: #eef3ec;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 60;
+}
+.report-value-wrap:hover .report-value-popover,
+.report-value-wrap.popover-open .report-value-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.report-value-popover .popover-name {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.report-value-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  padding: 3px 0;
+  color: #c3d3c6;
+}
+.report-value-row span:first-child { overflow-wrap: break-word; }
+.report-value-row span:last-child { color: #eef3ec; flex-shrink: 0; }
+
+@media (max-width: 880px) {
+  .report-value-popover { width: 210px; }
+}
+
 /* ---------- Varómetro global ---------- */
 
 .gauge-wrap { position: relative; margin: 4px 0; }

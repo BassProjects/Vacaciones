@@ -1129,23 +1129,33 @@ function initApp(root) {
     `;
   }
 
+  function workersForRequests(requests) {
+    const daysByUser = new Map();
+    const nameByUser = new Map();
+    for (const r of requests) {
+      daysByUser.set(r.userId, (daysByUser.get(r.userId) || 0) + Number(r.days));
+      nameByUser.set(r.userId, r.userName);
+    }
+    return [...daysByUser.entries()]
+      .map(([userId, days]) => ({ userId, name: nameByUser.get(userId), days }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   function computeTypeWorkerCounts() {
     const year = currentYear();
     const yearStr = String(year);
     const activeIds = new Set(APP.users.filter((u) => u.active).map((u) => u.id));
     const byType = APP.absenceTypes.map((t) => {
-      const workerIds = new Set(
-        APP.requests
-          .filter(
-            (r) =>
-              r.type === t.id &&
-              r.status === "approved" &&
-              r.dateFrom.slice(0, 4) === yearStr &&
-              activeIds.has(r.userId)
-          )
-          .map((r) => r.userId)
+      const workers = workersForRequests(
+        APP.requests.filter(
+          (r) =>
+            r.type === t.id &&
+            r.status === "approved" &&
+            r.dateFrom.slice(0, 4) === yearStr &&
+            activeIds.has(r.userId)
+        )
       );
-      return { type: t, count: workerIds.size };
+      return { type: t, count: workers.length, workers };
     });
     return { year, totalActive: activeIds.size, byType };
   }
@@ -1157,25 +1167,46 @@ function initApp(root) {
       const deptUsers = APP.users.filter((u) => u.active && u.department === d.id);
       const deptUserIds = new Set(deptUsers.map((u) => u.id));
       const byType = APP.absenceTypes.map((t) => {
-        const workerIds = new Set(
-          APP.requests
-            .filter(
-              (r) =>
-                r.type === t.id &&
-                r.status === "approved" &&
-                r.dateFrom.slice(0, 4) === yearStr &&
-                deptUserIds.has(r.userId)
-            )
-            .map((r) => r.userId)
+        const workers = workersForRequests(
+          APP.requests.filter(
+            (r) =>
+              r.type === t.id &&
+              r.status === "approved" &&
+              r.dateFrom.slice(0, 4) === yearStr &&
+              deptUserIds.has(r.userId)
+          )
         );
-        return { type: t, count: workerIds.size };
+        return { type: t, count: workers.length, workers };
       });
       const total = byType.reduce((s, x) => s + x.count, 0);
       return { dept: d, employeeCount: deptUsers.length, byType, total };
     });
   }
 
-  function reportBarRow(label, pct, valueText, color) {
+  function reportValuePopoverHtml(valueText, title, lines) {
+    if (!lines.length) return `<div class="report-bar-value mono">${esc(valueText)}</div>`;
+    const rows = lines
+      .map(
+        (l) => `
+        <div class="report-value-row">
+          <span>${esc(l.name)}${l.typeLabel ? ` · ${esc(l.typeLabel)}` : ""}</span>
+          <span class="mono">${fmtDays(l.days)} día${fmtDays(l.days) === "1" ? "" : "s"}</span>
+        </div>
+      `
+      )
+      .join("");
+    return `
+      <div class="report-value-wrap" data-action="toggle-report-popover">
+        <div class="report-bar-value mono">${esc(valueText)}</div>
+        <div class="report-value-popover">
+          <div class="popover-name">${esc(title)}</div>
+          ${rows}
+        </div>
+      </div>
+    `;
+  }
+
+  function reportBarRow(label, pct, valueText, color, workers = []) {
     return `
       <div class="report-bar-row">
         <div class="report-bar-label" title="${esc(label)}">${esc(label)}</div>
@@ -1183,7 +1214,7 @@ function initApp(root) {
           100,
           Math.max(0, pct)
         )}%;background:${color}"></div></div>
-        <div class="report-bar-value mono">${esc(valueText)}</div>
+        ${reportValuePopoverHtml(valueText, label, workers)}
       </div>
     `;
   }
@@ -1200,11 +1231,14 @@ function initApp(root) {
         )}: ${seg.count}"></div>`;
       })
       .join("");
+    const lines = segments
+      .flatMap((seg) => (seg.workers || []).map((w) => ({ name: w.name, typeLabel: seg.label, days: w.days })))
+      .sort((a, b) => a.name.localeCompare(b.name));
     return `
       <div class="report-bar-row">
         <div class="report-bar-label" title="${esc(label)}">${esc(label)}</div>
         <div class="report-bar-track"><div class="stacked-bar-fill" style="width:${totalWidthPct}%">${segmentsHtml}</div></div>
-        <div class="report-bar-value mono">${total} trabajador${total === 1 ? "" : "es"}</div>
+        ${reportValuePopoverHtml(`${total} trabajador${total === 1 ? "" : "es"}`, label, lines)}
       </div>
     `;
   }
@@ -1258,7 +1292,8 @@ function initApp(root) {
           t.type.name,
           pct,
           `${t.count} trabajador${t.count === 1 ? "" : "es"}`,
-          t.type.color
+          t.type.color,
+          t.workers
         );
       })
       .join("");
@@ -1276,7 +1311,7 @@ function initApp(root) {
       .map((d) =>
         reportStackedBarRow(
           `${d.dept.name} (${d.employeeCount})`,
-          d.byType.map((t) => ({ label: t.type.name, count: t.count, color: t.type.color })),
+          d.byType.map((t) => ({ label: t.type.name, count: t.count, color: t.type.color, workers: t.workers })),
           maxDeptTotal
         )
       )
@@ -1700,6 +1735,11 @@ function initApp(root) {
       if (!e.target.closest(".cal-chip-popover")) {
         root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
       }
+      if (!e.target.closest(".report-value-popover")) {
+        root
+          .querySelectorAll(".report-value-wrap.popover-open")
+          .forEach((w) => w.classList.remove("popover-open"));
+      }
       return;
     }
     const action = el.dataset.action;
@@ -1707,6 +1747,14 @@ function initApp(root) {
       case "toggle-chip-popover": {
         const wasOpen = el.classList.contains("popover-open");
         root.querySelectorAll(".cal-chip-wrap.popover-open").forEach((w) => w.classList.remove("popover-open"));
+        if (!wasOpen) el.classList.add("popover-open");
+        break;
+      }
+      case "toggle-report-popover": {
+        const wasOpen = el.classList.contains("popover-open");
+        root
+          .querySelectorAll(".report-value-wrap.popover-open")
+          .forEach((w) => w.classList.remove("popover-open"));
         if (!wasOpen) el.classList.add("popover-open");
         break;
       }
