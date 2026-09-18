@@ -1779,9 +1779,11 @@ function initApp(root) {
         <div class="attachment-row">
           <span class="attachment-icon">${a.mimeType.startsWith("image/") ? "🖼️" : "📄"}</span>
           <div class="attachment-info">
-            <a href="/api/requests/${esc(request.id)}/attachments/${esc(a.id)}" target="_blank" class="attachment-name">${esc(
-              a.filename
-            )}</a>
+            <a href="/api/requests/${esc(request.id)}/attachments/${esc(
+              a.id
+            )}" target="_blank" rel="noopener" class="attachment-name" data-action="open-attachment-popup" data-url="/api/requests/${esc(
+              request.id
+            )}/attachments/${esc(a.id)}">${esc(a.filename)}</a>
             <div class="faint">${fmtBytes(a.sizeBytes)} · ${esc(a.uploadedBy)} · ${fmtDateTime(a.uploadedAt)}</div>
           </div>
         </div>
@@ -2088,6 +2090,16 @@ function initApp(root) {
         APP.modalError = "";
         render();
         loadAttachmentsFor(reqId);
+        break;
+      }
+      case "open-attachment-popup": {
+        e.preventDefault();
+        const url = el.dataset.url;
+        window.open(
+          url,
+          "_blank",
+          "noopener,noreferrer,width=1000,height=800,menubar=no,toolbar=no,location=no,status=no"
+        );
         break;
       }
       case "nav":
