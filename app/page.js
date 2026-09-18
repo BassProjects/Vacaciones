@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import {
   computeDays,
   daysInMonth,
+  enumerateWorkDays,
   formatISODate,
   MONTH_NAMES_ES,
   WEEKDAY_NAMES_ES,
@@ -35,7 +36,8 @@ function esc(value) {
 }
 
 function wordmarkHtml(size, onDark) {
-  return `<span class="wordmark ${onDark ? "on-dark" : ""}" style="font-size:${size}"><span class="wm-navy">sepia</span><span class="wm-lime">mary</span></span>`;
+  const src = onDark ? "/brand-logo-dark.png" : "/brand-logo-light.png";
+  return `<img class="wordmark-logo" src="${src}" alt="SepiaMary" style="height:${size}" />`;
 }
 
 function eyeIconSvg(crossedOut) {
@@ -391,7 +393,7 @@ function initApp(root) {
       <div class="login-screen">
         <div class="login-card">
           <div class="login-brand">
-            ${wordmarkHtml("32px", false)}
+            ${wordmarkHtml("104px", false)}
             <p>Gestión de vacaciones y ausencias del equipo</p>
           </div>
           ${APP.loginError ? `<div class="form-error">${esc(APP.loginError)}</div>` : ""}
@@ -479,7 +481,7 @@ function initApp(root) {
     return `
       <aside class="sidebar">
         <div class="brand">
-          ${wordmarkHtml("19px", true)}
+          ${wordmarkHtml("30px", true)}
           <div class="brand-text">Vacaciones</div>
         </div>
         <nav class="nav-list">${navItemsHtml()}</nav>
@@ -491,7 +493,7 @@ function initApp(root) {
   function renderTopbar() {
     return `
       <div class="topbar">
-        <div class="brand">${wordmarkHtml("16px", true)}</div>
+        <div class="brand">${wordmarkHtml("26px", true)}</div>
         <button type="button" class="hamburger-btn" data-action="toggle-mobile-menu">☰</button>
       </div>
     `;
@@ -501,7 +503,7 @@ function initApp(root) {
     return `
       <div class="mobile-nav-overlay">
         <div class="flex-between" style="margin-bottom:24px">
-          <div class="brand">${wordmarkHtml("18px", true)}</div>
+          <div class="brand">${wordmarkHtml("28px", true)}</div>
           <button type="button" class="hamburger-btn" data-action="toggle-mobile-menu">✕</button>
         </div>
         <nav class="nav-list">${navItemsHtml()}</nav>
@@ -1441,6 +1443,9 @@ function initApp(root) {
       wide = true;
     } else if (m.type === "attachments") {
       inner = renderAttachmentsModal(m);
+    } else if (m.type === "overlap") {
+      inner = renderOverlapModal(m);
+      wide = true;
     }
     return `<div class="modal-overlay"><div class="modal-box${wide ? " modal-box-wide" : ""}">${inner}</div></div>`;
   }
@@ -1789,6 +1794,74 @@ function initApp(root) {
     `;
   }
 
+  function overlapDayHeaderParts(iso) {
+    const d = new Date(`${iso}T00:00:00Z`);
+    const idx = (d.getUTCDay() + 6) % 7;
+    const weekdayShort = WEEKDAY_NAMES_ES[idx].slice(0, 2).toUpperCase();
+    const dayNum = String(d.getUTCDate()).padStart(2, "0");
+    const monthNum = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return { weekdayShort, dayNum, monthNum };
+  }
+
+  function renderOverlapModal(m) {
+    const request = APP.requests.find((r) => r.id === m.requestId);
+    if (!request) return `<div class="modal-title">Solicitud no encontrada</div>`;
+    const overlap = computeOverlapping(request);
+    const byDay = m.scope === "dept" ? overlap.byDayDept : overlap.byDayAll;
+    const deptName = APP.departments.find((d) => d.id === request.department)?.name || request.department;
+    const title = m.scope === "dept" ? `${deptName} / Todo el equipo` : "Toda la organización";
+    const max = Math.max(1, ...byDay.map((d) => d.users.length));
+
+    const tabsHtml = byDay
+      .map((d, i) => {
+        const { weekdayShort, dayNum } = overlapDayHeaderParts(d.date);
+        const pct = Math.max(8, Math.round((d.users.length / max) * 100));
+        return `
+          <a class="overlap-day-tab${i === 0 ? " active" : ""}" href="#overlap-day-${esc(d.date)}">
+            <div class="overlap-day-tab-bar"><div class="overlap-day-tab-bar-fill" style="height:${pct}%"></div></div>
+            <div class="overlap-day-tab-label">${esc(weekdayShort)}<br/>${esc(dayNum)}</div>
+          </a>
+        `;
+      })
+      .join("");
+
+    const bodyHtml = byDay
+      .map((d) => {
+        const { weekdayShort, dayNum, monthNum } = overlapDayHeaderParts(d.date);
+        const rows = d.users.length
+          ? d.users
+              .map(
+                (u) => `
+            <div class="overlap-person-row">
+              <div class="overlap-person-left">${avatarHtml(u, 26)}<span>${esc(u.name)}</span></div>
+              <span class="overlap-person-range mono">${fmtDate(u.dateFrom)} - ${fmtDate(u.dateTo)}</span>
+            </div>
+          `
+              )
+              .join("")
+          : `<div class="empty-state">Nadie ausente este día.</div>`;
+        return `
+          <div class="overlap-day-group" id="overlap-day-${esc(d.date)}">
+            <div class="overlap-day-header">
+              <span class="overlap-day-date">${esc(weekdayShort)} ${dayNum}.${monthNum}</span>
+              ${d.users.length ? `<span class="overlap-day-count-badge">${d.users.length}</span>` : ""}
+            </div>
+            ${rows}
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <div class="overlap-modal-header">
+        <div class="modal-title">${esc(title)}</div>
+        <button type="button" class="modal-close-x" data-action="close-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="overlap-day-tabs">${tabsHtml}</div>
+      <div class="overlap-modal-body">${bodyHtml}</div>
+    `;
+  }
+
   function canUploadAttachment(request) {
     return (
       request.type === "baja" &&
@@ -1840,26 +1913,48 @@ function initApp(root) {
     `;
   }
 
-  function computeOverlapping(request) {
-    const overlapping = APP.requests.filter(
-      (r) =>
-        r.status === "approved" &&
-        r.dateFrom <= request.dateTo &&
-        r.dateTo >= request.dateFrom
-    );
+  function usersOnDay(iso, deptFilter) {
+    return APP.requests
+      .filter(
+        (r) =>
+          r.status === "approved" &&
+          r.dateFrom <= iso &&
+          r.dateTo >= iso &&
+          (!deptFilter || r.department === deptFilter)
+      )
+      .map((r) => {
+        const rosterUser = APP.roster.find((u) => u.id === r.userId);
+        return {
+          id: r.userId,
+          name: r.userName,
+          department: r.department,
+          avatarUrl: rosterUser?.avatarUrl,
+          dateFrom: r.dateFrom,
+          dateTo: r.dateTo,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function buildOverlapScope(days, deptFilter) {
+    const byDay = days.map((iso) => ({ date: iso, users: usersOnDay(iso, deptFilter) }));
     const byId = new Map();
-    overlapping.forEach((r) => {
-      const rosterUser = APP.roster.find((u) => u.id === r.userId);
-      byId.set(r.userId, {
-        id: r.userId,
-        name: r.userName,
-        department: r.department,
-        avatarUrl: rosterUser?.avatarUrl,
-      });
-    });
-    const all = [...byId.values()];
-    const sameDept = all.filter((u) => u.department === request.department);
-    return { all, sameDept };
+    byDay.forEach((d) => d.users.forEach((u) => byId.set(u.id, u)));
+    return { list: [...byId.values()], byDay };
+  }
+
+  function computeOverlapping(request) {
+    const holidaysSet = new Set(APP.holidays.map((h) => h.date));
+    const days = enumerateWorkDays(request.dateFrom, request.dateTo, holidaysSet);
+    const deptScope = buildOverlapScope(days, request.department);
+    const allScope = buildOverlapScope(days, null);
+    return {
+      days,
+      all: allScope.list,
+      sameDept: deptScope.list,
+      byDayAll: allScope.byDay,
+      byDayDept: deptScope.byDay,
+    };
   }
 
   function renderOverlapAvatars(list) {
@@ -1870,12 +1965,26 @@ function initApp(root) {
     return `<div class="overlap-avatars">${avatars}${extraHtml}</div>`;
   }
 
-  function renderOverlapRow(label, list) {
+  function renderOverlapSparkline(byDay) {
+    const max = Math.max(1, ...byDay.map((d) => d.users.length));
+    const bars = byDay
+      .map((d) => {
+        const pct = Math.max(8, Math.round((d.users.length / max) * 100));
+        const cls = d.users.length > 0 ? "overlap-bar-fill" : "overlap-bar-fill empty";
+        return `<div class="overlap-bar"><div class="${cls}" style="height:${pct}%"></div></div>`;
+      })
+      .join("");
+    return `<div class="overlap-sparkline">${bars}</div>`;
+  }
+
+  function renderOverlapRow(label, list, byDay, requestId, scope) {
     return `
-      <div class="overlap-row">
+      <div class="overlap-row" data-action="open-overlap-modal" data-id="${esc(requestId)}" data-scope="${esc(
+      scope
+    )}">
         <div class="overlap-row-label">${esc(label)}</div>
         <div class="overlap-row-right">
-          <span class="overlap-count">${list.length}</span>
+          ${renderOverlapSparkline(byDay)}
           ${renderOverlapAvatars(list)}
         </div>
       </div>
@@ -1930,8 +2039,8 @@ function initApp(root) {
       </div>
       <div class="detail-overlap-section">
         <div class="section-title">Ausente al mismo tiempo</div>
-        ${renderOverlapRow(deptName, overlap.sameDept)}
-        ${renderOverlapRow("Toda la organización", overlap.all)}
+        ${renderOverlapRow(deptName, overlap.sameDept, overlap.byDayDept, request.id, "dept")}
+        ${renderOverlapRow("Toda la organización", overlap.all, overlap.byDayAll, request.id, "all")}
       </div>
     `;
   }
@@ -2118,6 +2227,10 @@ function initApp(root) {
         break;
       case "switch-detail-tab":
         if (APP.detailPanel) APP.detailPanel.tab = el.dataset.tab;
+        render();
+        break;
+      case "open-overlap-modal":
+        APP.modal = { type: "overlap", requestId: el.dataset.id, scope: el.dataset.scope };
         render();
         break;
       case "open-attachments-modal": {
