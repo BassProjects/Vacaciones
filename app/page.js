@@ -480,8 +480,8 @@ function initApp(root) {
   function renderSidebar() {
     return `
       <aside class="sidebar">
-        <div class="brand">
-          ${wordmarkHtml("30px", true)}
+        <div class="brand brand-stacked">
+          ${wordmarkHtml("72px", true)}
           <div class="brand-text">Vacaciones</div>
         </div>
         <nav class="nav-list">${navItemsHtml()}</nav>
@@ -493,7 +493,7 @@ function initApp(root) {
   function renderTopbar() {
     return `
       <div class="topbar">
-        <div class="brand">${wordmarkHtml("26px", true)}</div>
+        <div class="brand">${wordmarkHtml("40px", true)}</div>
         <button type="button" class="hamburger-btn" data-action="toggle-mobile-menu">☰</button>
       </div>
     `;
@@ -503,7 +503,7 @@ function initApp(root) {
     return `
       <div class="mobile-nav-overlay">
         <div class="flex-between" style="margin-bottom:24px">
-          <div class="brand">${wordmarkHtml("28px", true)}</div>
+          <div class="brand">${wordmarkHtml("48px", true)}</div>
           <button type="button" class="hamburger-btn" data-action="toggle-mobile-menu">✕</button>
         </div>
         <nav class="nav-list">${navItemsHtml()}</nav>
