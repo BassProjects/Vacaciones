@@ -780,6 +780,91 @@ td.wrap { white-space: normal; }
   .roster-card { position: static; }
 }
 
+/* ---------- Solicitar: calendario de selección por arrastre ---------- */
+
+.request-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+.request-cal-col { min-width: 0; }
+.request-form-col .card { max-width: 100%; }
+
+.reqcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  user-select: none;
+}
+.reqcal-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  padding-bottom: 4px;
+}
+.reqcal-day {
+  min-height: 52px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  cursor: pointer;
+}
+.reqcal-day-num { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--text-soft); }
+.reqcal-day.outside { opacity: 0.4; }
+.reqcal-day.weekend { background: var(--surface-soft); }
+.reqcal-day.holiday { border-color: var(--red-fg); }
+.reqcal-day.today { border-color: var(--lime-dark); border-width: 2px; }
+.reqcal-day:hover { background: var(--surface-soft); }
+.reqcal-day.selected {
+  background: var(--lime);
+  border-color: var(--lime-dark);
+}
+.reqcal-day.selected .reqcal-day-num { color: var(--navy-950); font-weight: 700; }
+.reqcal-day.selected.range-start,
+.reqcal-day.selected.range-end {
+  background: var(--lime-dark);
+}
+
+.request-allowance-wrap { margin-top: 20px; max-width: 720px; }
+.allowance-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.allowance-bar-track {
+  position: relative;
+  flex: 1;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  overflow: hidden;
+  display: flex;
+}
+.allowance-bar-fill.consumed { height: 100%; background: var(--border); }
+.allowance-bar-fill.selected { height: 100%; background: var(--navy-700); }
+.allowance-bar-fill.selected.over { background: var(--red-fg); }
+.allowance-bar-text {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+.allowance-bar-year { font-size: 12.5px; font-weight: 600; color: var(--text-faint); width: 40px; }
+
+@media (max-width: 880px) {
+  .request-layout { grid-template-columns: 1fr; }
+  .reqcal-day { min-height: 42px; }
+}
+
 /* ---------- Modal ---------- */
 
 .modal-overlay {

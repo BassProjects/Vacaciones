@@ -218,10 +218,13 @@ function initApp(root) {
     mobileMenuOpen: false,
     calendar: { year: new Date().getFullYear(), month: new Date().getMonth() },
     calendarDeptFilter: null,
+    requestCalMonth: { year: new Date().getFullYear(), month: new Date().getMonth() },
+    reqCalDragging: false,
+    reqCalDragAnchor: null,
     requestFormValues: {
       type: "vacaciones",
-      dateFrom: "",
-      dateTo: "",
+      dateFrom: formatISODate(new Date()),
+      dateTo: formatISODate(new Date()),
       halfStart: false,
       halfEnd: false,
       note: "",
@@ -241,10 +244,15 @@ function initApp(root) {
   let bannerTimer = null;
   const HOVER_POPOVER_SELECTOR = ".cal-chip-wrap, .report-value-wrap";
 
+  function onDocumentMouseUp() {
+    APP.reqCalDragging = false;
+  }
+
   root.addEventListener("click", onClick);
   root.addEventListener("submit", onSubmit);
   root.addEventListener("mouseover", onHoverPopoverEnter);
   root.addEventListener("mouseout", onHoverPopoverLeave);
+  document.addEventListener("mouseup", onDocumentMouseUp);
 
   init();
 
@@ -255,6 +263,7 @@ function initApp(root) {
     root.removeEventListener("submit", onSubmit);
     root.removeEventListener("mouseover", onHoverPopoverEnter);
     root.removeEventListener("mouseout", onHoverPopoverLeave);
+    document.removeEventListener("mouseup", onDocumentMouseUp);
   };
 
   // ---------------- arranque ----------------
@@ -349,7 +358,22 @@ function initApp(root) {
 
   function runPostRenderHooks() {
     const reqForm = root.querySelector('form[data-action="request-form"]');
-    if (reqForm) attachRequestFormLivePreview(reqForm);
+    if (reqForm) {
+      attachRequestFormLivePreview(reqForm);
+      attachRequestCalendarDrag(reqForm);
+    }
+  }
+
+  function syncReqCalSelection(dateFrom, dateTo) {
+    const grid = root.querySelector('[data-role="reqcal-grid"]');
+    if (!grid) return;
+    grid.querySelectorAll(".reqcal-day[data-date]").forEach((cell) => {
+      const d = cell.dataset.date;
+      const inRange = !!dateFrom && !!dateTo && d >= dateFrom && d <= dateTo;
+      cell.classList.toggle("selected", inRange);
+      cell.classList.toggle("range-start", d === dateFrom);
+      cell.classList.toggle("range-end", d === dateTo);
+    });
   }
 
   function attachRequestFormLivePreview(formEl) {
@@ -371,10 +395,57 @@ function initApp(root) {
       }
       const out = formEl.querySelector('[data-role="days-preview"]');
       if (out) out.textContent = fmtDays(days);
+
+      const barsEl = root.querySelector('[data-role="allowance-bars"]');
+      if (barsEl) barsEl.innerHTML = renderAllowanceBars(APP.requestFormValues);
+
+      if (!APP.reqCalDragging && dateFrom) {
+        const anchor = new Date(`${dateFrom}T00:00:00Z`);
+        const wantedYear = anchor.getUTCFullYear();
+        const wantedMonth = anchor.getUTCMonth();
+        if (wantedYear !== APP.requestCalMonth.year || wantedMonth !== APP.requestCalMonth.month) {
+          APP.requestCalMonth = { year: wantedYear, month: wantedMonth };
+          render();
+          return;
+        }
+      }
+      syncReqCalSelection(dateFrom, dateTo);
     };
     formEl.addEventListener("input", update);
     formEl.addEventListener("change", update);
     update();
+  }
+
+  function attachRequestCalendarDrag(formEl) {
+    const grid = root.querySelector('[data-role="reqcal-grid"]');
+    if (!grid) return;
+    const dateFromInput = formEl.querySelector('input[name="dateFrom"]');
+    const dateToInput = formEl.querySelector('input[name="dateTo"]');
+    if (!dateFromInput || !dateToInput) return;
+
+    function setRange(fromISO, toISO) {
+      dateFromInput.value = fromISO;
+      dateToInput.value = toISO;
+      dateFromInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    grid.addEventListener("mousedown", (e) => {
+      const cell = e.target.closest(".reqcal-day[data-date]");
+      if (!cell) return;
+      e.preventDefault();
+      APP.reqCalDragging = true;
+      APP.reqCalDragAnchor = cell.dataset.date;
+      setRange(APP.reqCalDragAnchor, APP.reqCalDragAnchor);
+    });
+
+    grid.addEventListener("mouseover", (e) => {
+      if (!APP.reqCalDragging) return;
+      const cell = e.target.closest(".reqcal-day[data-date]");
+      if (!cell) return;
+      const hovered = cell.dataset.date;
+      const anchor = APP.reqCalDragAnchor;
+      setRange(hovered < anchor ? hovered : anchor, hovered < anchor ? anchor : hovered);
+    });
   }
 
   function buildHTML() {
@@ -561,47 +632,164 @@ function initApp(root) {
       .join("");
 
     return `
-      <div class="card" style="max-width:560px">
-        ${APP.requestFormError ? `<div class="form-error">${esc(APP.requestFormError)}</div>` : ""}
-        <form data-action="request-form">
-          <div class="field">
-            <label>Tipo de ausencia</label>
-            <select name="type">${typeOptions}</select>
+      <div class="request-layout">
+        <div class="request-cal-col">${renderRequestCalendar()}</div>
+        <div class="request-form-col">
+          <div class="card">
+            ${APP.requestFormError ? `<div class="form-error">${esc(APP.requestFormError)}</div>` : ""}
+            <form data-action="request-form">
+              <div class="field">
+                <label>Tipo de ausencia</label>
+                <select name="type">${typeOptions}</select>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Desde</label>
+                  <input type="date" name="dateFrom" value="${esc(f.dateFrom)}" required />
+                </div>
+                <div class="field">
+                  <label>Hasta</label>
+                  <input type="date" name="dateTo" value="${esc(f.dateTo)}" required />
+                </div>
+              </div>
+              <div class="field-row">
+                <label class="checkbox-row"><input type="checkbox" name="halfStart" ${
+                  f.halfStart ? "checked" : ""
+                } /> Medio día al inicio</label>
+                <label class="checkbox-row"><input type="checkbox" name="halfEnd" ${
+                  f.halfEnd ? "checked" : ""
+                } /> Medio día al final</label>
+              </div>
+              <div class="preview-box">
+                <span class="muted">Días solicitados</span>
+                <span class="big mono" data-role="days-preview">0</span>
+              </div>
+              <div class="field">
+                <label>Nota (opcional)</label>
+                <textarea name="note" placeholder="Información adicional para tu encargado…">${esc(
+                  f.note
+                )}</textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block" ${
+                APP.requestFormLoading ? "disabled" : ""
+              }>${APP.requestFormLoading ? "Enviando…" : "Enviar solicitud"}</button>
+            </form>
           </div>
-          <div class="field-row">
-            <div class="field">
-              <label>Desde</label>
-              <input type="date" name="dateFrom" value="${esc(f.dateFrom)}" required />
-            </div>
-            <div class="field">
-              <label>Hasta</label>
-              <input type="date" name="dateTo" value="${esc(f.dateTo)}" required />
-            </div>
+        </div>
+      </div>
+      <div class="request-allowance-wrap" data-role="allowance-bars">${renderAllowanceBars(f)}</div>
+    `;
+  }
+
+  function renderRequestCalendar() {
+    const { year, month } = APP.requestCalMonth;
+    const holidaysMap = new Map(APP.holidays.map((h) => [h.date, h.name]));
+    const todayISO = formatISODate(new Date());
+    const f = APP.requestFormValues;
+
+    const firstOfMonth = new Date(Date.UTC(year, month, 1));
+    const firstWeekday = (firstOfMonth.getUTCDay() + 6) % 7;
+    const totalDays = daysInMonth(year, month);
+    const lastOfMonth = new Date(Date.UTC(year, month, totalDays));
+    const lastWeekday = (lastOfMonth.getUTCDay() + 6) % 7;
+    const trailing = 6 - lastWeekday;
+
+    const cells = [];
+    for (let i = firstWeekday; i > 0; i--) {
+      cells.push({ date: new Date(Date.UTC(year, month, 1 - i)), outside: true });
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      cells.push({ date: new Date(Date.UTC(year, month, d)), outside: false });
+    }
+    for (let i = 1; i <= trailing; i++) {
+      cells.push({ date: new Date(Date.UTC(year, month, totalDays + i)), outside: true });
+    }
+
+    const dayCellsHtml = cells
+      .map((c) => {
+        const iso = formatISODate(c.date);
+        const dow = c.date.getUTCDay();
+        const isWeekend = dow === 0 || dow === 6;
+        const holidayName = holidaysMap.get(iso);
+        const inRange = !!f.dateFrom && !!f.dateTo && iso >= f.dateFrom && iso <= f.dateTo;
+
+        const classes = ["reqcal-day"];
+        if (c.outside) classes.push("outside");
+        if (isWeekend) classes.push("weekend");
+        if (holidayName) classes.push("holiday");
+        if (iso === todayISO) classes.push("today");
+        if (inRange) classes.push("selected");
+        if (iso === f.dateFrom) classes.push("range-start");
+        if (iso === f.dateTo) classes.push("range-end");
+
+        return `
+          <div class="${classes.join(" ")}" data-date="${iso}" title="${esc(holidayName || "")}">
+            <span class="reqcal-day-num">${c.date.getUTCDate()}</span>
           </div>
-          <div class="field-row">
-            <label class="checkbox-row"><input type="checkbox" name="halfStart" ${
-              f.halfStart ? "checked" : ""
-            } /> Medio día al inicio</label>
-            <label class="checkbox-row"><input type="checkbox" name="halfEnd" ${
-              f.halfEnd ? "checked" : ""
-            } /> Medio día al final</label>
-          </div>
-          <div class="preview-box">
-            <span class="muted">Días solicitados</span>
-            <span class="big mono" data-role="days-preview">0</span>
-          </div>
-          <div class="field">
-            <label>Nota (opcional)</label>
-            <textarea name="note" placeholder="Información adicional para tu encargado…">${esc(
-              f.note
-            )}</textarea>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" ${
-            APP.requestFormLoading ? "disabled" : ""
-          }>${APP.requestFormLoading ? "Enviando…" : "Enviar solicitud"}</button>
-        </form>
+        `;
+      })
+      .join("");
+
+    const weekdaysHtml = WEEKDAY_NAMES_ES.map((w) => `<div class="reqcal-weekday">${w}</div>`).join("");
+
+    return `
+      <div class="cal-toolbar">
+        <div class="cal-nav">
+          <button type="button" class="icon-btn" data-action="reqcal-prev-month">‹</button>
+          <div class="cal-title">${MONTH_NAMES_ES[month]} ${year}</div>
+          <button type="button" class="icon-btn" data-action="reqcal-next-month">›</button>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" data-action="reqcal-today">Hoy</button>
+      </div>
+      <div class="card">
+        <div class="reqcal-grid" data-role="reqcal-grid">
+          ${weekdaysHtml}
+          ${dayCellsHtml}
+        </div>
       </div>
     `;
+  }
+
+  function renderAllowanceBars(f) {
+    const type = APP.absenceTypes.find((t) => t.id === f.type);
+    if (!type || !type.consumesAllowance) return "";
+    if (!f.dateFrom || !f.dateTo || f.dateTo < f.dateFrom) return "";
+
+    const holidaysSet = new Set(APP.holidays.map((h) => h.date));
+    const startYear = Number(f.dateFrom.slice(0, 4));
+    const endYear = Number(f.dateTo.slice(0, 4));
+    const rows = [];
+
+    for (let year = startYear; year <= endYear; year++) {
+      const sliceFrom = f.dateFrom.slice(0, 4) === String(year) ? f.dateFrom : `${year}-01-01`;
+      const sliceTo = f.dateTo.slice(0, 4) === String(year) ? f.dateTo : `${year}-12-31`;
+      if (sliceFrom > sliceTo) continue;
+      const sliceHalfStart = sliceFrom === f.dateFrom ? f.halfStart : false;
+      const sliceHalfEnd = sliceTo === f.dateTo ? f.halfEnd : false;
+      const selectedDays = computeDays(sliceFrom, sliceTo, sliceHalfStart, sliceHalfEnd, holidaysSet);
+
+      const info = computeAllowance(APP.me, APP.requests, year, APP.config.defaultAllowance);
+      const total = Math.max(info.allowance, info.consumed + selectedDays);
+      const consumedPct = total > 0 ? Math.min(100, (info.consumed / total) * 100) : 0;
+      const selectedPct = total > 0 ? Math.min(100 - consumedPct, (selectedDays / total) * 100) : 0;
+      const over = info.consumed + selectedDays > info.allowance;
+
+      rows.push(`
+        <div class="allowance-bar-row">
+          <div class="allowance-bar-track">
+            <div class="allowance-bar-fill consumed" style="width:${consumedPct}%"></div>
+            <div class="allowance-bar-fill selected${over ? " over" : ""}" style="width:${selectedPct}%"></div>
+            <span class="allowance-bar-text">${fmtDays(selectedDays)} día${
+        fmtDays(selectedDays) === "1" ? "" : "s"
+      } / ${fmtDays(info.allowance)} días</span>
+          </div>
+          <span class="allowance-bar-year">${year}</span>
+        </div>
+      `);
+    }
+
+    if (!rows.length) return "";
+    return `<div class="section-title">Disponibilidad</div>${rows.join("")}`;
   }
 
   function renderMyRequests() {
@@ -711,6 +899,21 @@ function initApp(root) {
       year += 1;
     }
     APP.calendar = { year, month };
+    render();
+  }
+
+  function shiftRequestCalMonth(delta) {
+    let { year, month } = APP.requestCalMonth;
+    month += delta;
+    if (month < 0) {
+      month = 11;
+      year -= 1;
+    }
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+    APP.requestCalMonth = { year, month };
     render();
   }
 
@@ -2282,6 +2485,18 @@ function initApp(root) {
       case "cal-next-month":
         shiftCalendarMonth(1);
         break;
+      case "reqcal-prev-month":
+        shiftRequestCalMonth(-1);
+        break;
+      case "reqcal-next-month":
+        shiftRequestCalMonth(1);
+        break;
+      case "reqcal-today": {
+        const now = new Date();
+        APP.requestCalMonth = { year: now.getFullYear(), month: now.getMonth() };
+        render();
+        break;
+      }
       case "toggle-dept-filter":
         toggleDeptFilter(el.dataset.dept);
         break;
@@ -2523,8 +2738,8 @@ function initApp(root) {
       APP.requestFormError = "";
       APP.requestFormValues = {
         type: "vacaciones",
-        dateFrom: "",
-        dateTo: "",
+        dateFrom: formatISODate(new Date()),
+        dateTo: formatISODate(new Date()),
         halfStart: false,
         halfEnd: false,
         note: "",
