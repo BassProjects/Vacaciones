@@ -214,9 +214,12 @@ function initApp(root) {
 
   let pollTimer = null;
   let bannerTimer = null;
+  const HOVER_POPOVER_SELECTOR = ".cal-chip-wrap, .report-value-wrap";
 
   root.addEventListener("click", onClick);
   root.addEventListener("submit", onSubmit);
+  root.addEventListener("mouseover", onHoverPopoverEnter);
+  root.addEventListener("mouseout", onHoverPopoverLeave);
 
   init();
 
@@ -225,6 +228,8 @@ function initApp(root) {
     if (bannerTimer) clearTimeout(bannerTimer);
     root.removeEventListener("click", onClick);
     root.removeEventListener("submit", onSubmit);
+    root.removeEventListener("mouseover", onHoverPopoverEnter);
+    root.removeEventListener("mouseout", onHoverPopoverLeave);
   };
 
   // ---------------- arranque ----------------
@@ -2024,6 +2029,21 @@ function initApp(root) {
   }
 
   // ---------------- eventos ----------------
+
+  function onHoverPopoverEnter(e) {
+    const wrap = e.target.closest(HOVER_POPOVER_SELECTOR);
+    if (!wrap) return;
+    root.querySelectorAll(`${HOVER_POPOVER_SELECTOR}.popover-open`).forEach((w) => {
+      if (w !== wrap) w.classList.remove("popover-open");
+    });
+  }
+
+  function onHoverPopoverLeave(e) {
+    const wrap = e.target.closest(HOVER_POPOVER_SELECTOR);
+    if (!wrap) return;
+    if (wrap.contains(e.relatedTarget)) return;
+    wrap.classList.remove("popover-open");
+  }
 
   function onClick(e) {
     const el = e.target.closest("[data-action]");
