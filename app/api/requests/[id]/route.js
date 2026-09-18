@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPool, ensureSchema } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { sendMail } from "@/lib/mailer";
-import { ABSENCE_TYPES } from "@/lib/constants";
+import { notifyRequestResolved } from "@/lib/notifications";
 
 function canApprove(me, request) {
   return (
@@ -17,12 +16,6 @@ const TRANSITIONS = {
   approve: { from: "pending", to: "approved" },
   reject: { from: "pending", to: "rejected" },
   cancel: { from: "approved", to: "cancelled" },
-};
-
-const STATUS_TEXT = {
-  approved: "aprobada",
-  rejected: "rechazada",
-  cancelled: "cancelada",
 };
 
 export async function PATCH(req, { params }) {
@@ -80,18 +73,7 @@ export async function PATCH(req, { params }) {
     updated.user_id,
   ]);
   const worker = userRows[0];
-  if (worker?.email) {
-    const typeName = ABSENCE_TYPES.find((t) => t.id === updated.type)?.name || updated.type;
-    const statusText = STATUS_TEXT[updated.status];
-    const subject = `Tu solicitud de ${typeName} ha sido ${statusText}`;
-    const html = `
-      <p>Hola ${worker.name},</p>
-      <p>Tu solicitud de <strong>${typeName}</strong> del ${updated.date_from} al ${updated.date_to} ha sido <strong>${statusText}</strong> por ${me.name}.</p>
-      ${updated.decision_note ? `<p>Motivo: ${updated.decision_note}</p>` : ""}
-      <p>Un saludo,<br/>Sepiamary</p>
-    `;
-    await sendMail({ to: worker.email, subject, html });
-  }
+  await notifyRequestResolved(pool, updated, worker, me.name, me.id);
 
   return NextResponse.json({ ok: true });
 }

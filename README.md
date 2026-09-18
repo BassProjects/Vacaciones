@@ -38,6 +38,13 @@ contraseña en cuanto entres.**
    `POSTGRES_URL_NON_POOLING`, etc.
 3. (Opcional) Añade en **Settings → Environment Variables**:
    - `SESSION_SECRET`: cadena aleatoria larga para firmar las sesiones.
-   - `RESEND_API_KEY` y `MAIL_FROM`: si quieres notificaciones por email.
+   - `RESEND_API_KEY` y `MAIL_FROM`: para las notificaciones por email de
+     solicitudes, aprobaciones, rechazos y cancelaciones (se envían al
+     trabajador y a los jefes del departamento). Por defecto se envían
+     como `Sepiamary Vacaciones <noreply@electropolis.es>`; para que
+     Resend acepte enviar desde ese remitente hay que verificar el
+     dominio `electropolis.es` en Resend (**Domains → Add Domain** y los
+     registros DNS que te indique). Sin `RESEND_API_KEY` la app funciona
+     igual, simplemente no se envían emails.
 4. Despliega. El esquema de base de datos y el usuario `admin` se crean
    automáticamente en la primera petición.

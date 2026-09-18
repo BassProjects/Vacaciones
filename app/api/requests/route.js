@@ -4,6 +4,7 @@ import { getPool, ensureSchema } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { computeDays } from "@/lib/dateUtils";
 import { ABSENCE_TYPES } from "@/lib/constants";
+import { notifyRequestCreated } from "@/lib/notifications";
 
 export async function POST(req) {
   await ensureSchema();
@@ -52,10 +53,11 @@ export async function POST(req) {
   }
 
   const id = crypto.randomUUID();
-  await pool.query(
+  const { rows: insertedRows } = await pool.query(
     `INSERT INTO requests
        (id, user_id, user_name, department, type, date_from, date_to, half_start, half_end, days, status, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11)
+     RETURNING *`,
     [
       id,
       me.id,
@@ -70,6 +72,8 @@ export async function POST(req) {
       note || null,
     ]
   );
+
+  await notifyRequestCreated(pool, insertedRows[0], me);
 
   return NextResponse.json({ id, days });
 }
