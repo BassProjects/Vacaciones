@@ -216,6 +216,7 @@ function initApp(root) {
     approvalsTab: "pendientes",
     adminTab: "empleados",
     mobileMenuOpen: false,
+    userMenuOpen: false,
     calendar: { year: new Date().getFullYear(), month: new Date().getMonth() },
     calendarDeptFilter: null,
     requestCalMonth: { year: new Date().getFullYear(), month: new Date().getMonth() },
@@ -535,15 +536,27 @@ function initApp(root) {
   function sidebarFootHtml() {
     return `
       <div class="sidebar-foot">
-        <div class="sidebar-user">
-          ${avatarHtml(APP.me, 34)}
-          <div class="sidebar-user-info">
-            <div class="sidebar-user-name">${esc(APP.me.name)}</div>
-            <div class="sidebar-user-role">${roleLabel(APP.me.role)}</div>
+        <div class="user-menu-wrap${APP.userMenuOpen ? " open" : ""}">
+          <button type="button" class="sidebar-user" data-action="toggle-user-menu">
+            ${avatarHtml(APP.me, 34)}
+            <div class="sidebar-user-info">
+              <div class="sidebar-user-name">${esc(APP.me.name)}</div>
+              <div class="sidebar-user-role">${roleLabel(APP.me.role)}</div>
+            </div>
+          </button>
+          <div class="user-menu-dropdown">
+            <div class="user-menu-header">
+              ${avatarHtml(APP.me, 40)}
+              <div class="user-menu-headinfo">
+                <div class="user-menu-name">${esc(APP.me.name)}</div>
+                ${APP.me.email ? `<div class="user-menu-email">${esc(APP.me.email)}</div>` : ""}
+              </div>
+            </div>
+            <button type="button" class="user-menu-item" data-action="open-user-profile">Perfil de usuario</button>
+            <button type="button" class="user-menu-item" data-action="open-change-password">Cambiar contraseña</button>
+            <button type="button" class="user-menu-item" data-action="logout">Cerrar sesión</button>
           </div>
         </div>
-        <button type="button" class="btn-ghost-light" data-action="open-change-password">Cambiar contraseña</button>
-        <button type="button" class="btn-ghost-light" data-action="logout">Cerrar sesión</button>
       </div>
     `;
   }
@@ -1635,6 +1648,7 @@ function initApp(root) {
     else if (m.type === "deleteWorker") inner = renderDeleteWorkerModal();
     else if (m.type === "addHoliday") inner = renderAddHolidayModal();
     else if (m.type === "changePassword") inner = renderChangePasswordModal();
+    else if (m.type === "editProfile") inner = renderEditProfileModal();
     else if (m.type === "importHolidays") {
       inner = renderImportHolidaysModal();
       wide = true;
@@ -1721,6 +1735,34 @@ function initApp(root) {
       <form data-action="change-password-form">
         ${passwordFieldHtml({ label: "Contraseña actual", name: "currentPassword", autocomplete: "current-password" })}
         ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 6 })}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
+      APP.modalLoading ? "Guardando…" : "Guardar"
+    }</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderEditProfileModal() {
+    const me = APP.me;
+    return `
+      <div class="modal-title">Perfil de usuario</div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <form data-action="edit-profile-form">
+        <div class="field">
+          <label>Nombre</label>
+          <input type="text" name="name" value="${esc(me.name)}" required />
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" name="email" value="${esc(me.email || "")}" required />
+        </div>
+        <div class="field">
+          <label>Fecha de nacimiento</label>
+          <input type="date" name="birthDate" value="${me.birthDate ? esc(me.birthDate) : ""}" />
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
@@ -2386,6 +2428,10 @@ function initApp(root) {
           .querySelectorAll(".report-value-wrap.popover-open")
           .forEach((w) => w.classList.remove("popover-open"));
       }
+      if (APP.userMenuOpen && !e.target.closest(".user-menu-wrap")) {
+        APP.userMenuOpen = false;
+        render();
+      }
       return;
     }
     const action = el.dataset.action;
@@ -2458,13 +2504,26 @@ function initApp(root) {
         APP.mobileMenuOpen = !APP.mobileMenuOpen;
         render();
         break;
+      case "toggle-user-menu":
+        APP.userMenuOpen = !APP.userMenuOpen;
+        render();
+        break;
       case "logout":
+        APP.userMenuOpen = false;
         handleLogout();
+        break;
+      case "open-user-profile":
+        APP.modal = { type: "editProfile" };
+        APP.modalError = "";
+        APP.userMenuOpen = false;
+        APP.mobileMenuOpen = false;
+        render();
         break;
       case "open-change-password":
         APP.modal = { type: "changePassword" };
         APP.modalError = "";
         APP.mobileMenuOpen = false;
+        APP.userMenuOpen = false;
         render();
         break;
       case "profile-tab":
@@ -2613,6 +2672,8 @@ function initApp(root) {
         return handleRequestSubmit(fd);
       case "change-password-form":
         return handleChangePassword(fd);
+      case "edit-profile-form":
+        return handleEditProfile(fd);
       case "add-worker-form":
         return handleAddWorker(fd);
       case "edit-worker-form":
@@ -2831,6 +2892,37 @@ function initApp(root) {
       APP.modal = null;
       showBanner("success", "Contraseña actualizada");
       render();
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleEditProfile(fd) {
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch(`/api/users/${APP.me.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fd.get("name"),
+          email: fd.get("email") || "",
+          birthDate: fd.get("birthDate") || null,
+        }),
+      });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se ha podido guardar";
+        render();
+        return;
+      }
+      APP.modal = null;
+      showBanner("success", "Perfil actualizado");
+      await loadBootstrap(true);
     } catch (err) {
       APP.modalLoading = false;
       APP.modalError = "Error de conexión";

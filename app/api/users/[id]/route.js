@@ -5,13 +5,23 @@ import { getCurrentUser } from "@/lib/session";
 export async function PATCH(req, { params }) {
   await ensureSchema();
   const me = await getCurrentUser();
-  if (!me || me.role !== "admin") {
+  if (!me) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+
+  const { id } = params;
+  const isAdmin = me.role === "admin";
+  if (!isAdmin && me.id !== id) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const { id } = params;
   const body = await req.json().catch(() => ({}));
-  const { name, email, department, role, allowanceOverride, active, birthDate } = body;
+  let { name, email, department, role, allowanceOverride, active, birthDate } = body;
+  if (!isAdmin) {
+    // Un trabajador solo puede editar su propio nombre, correo y fecha de nacimiento.
+    department = undefined;
+    role = undefined;
+    allowanceOverride = undefined;
+    active = undefined;
+  }
 
   const pool = getPool();
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
