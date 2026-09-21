@@ -2440,6 +2440,20 @@ function initApp(root) {
         APP.userMenuOpen = false;
         render();
       }
+      // Clic fuera del calendario de "Solicitar" (y fuera del propio
+      // formulario, para no perder la fecha al enviar): desmarca el día.
+      // Solo aplica si ese calendario está realmente en pantalla, para no
+      // interferir con el envío de cualquier otro formulario de la app.
+      if (
+        root.querySelector(".request-cal-col") &&
+        APP.requestFormValues.dateFrom &&
+        !e.target.closest(".request-cal-col") &&
+        !e.target.closest('form[data-action="request-form"]')
+      ) {
+        APP.requestFormValues.dateFrom = "";
+        APP.requestFormValues.dateTo = "";
+        render();
+      }
       return;
     }
     const action = el.dataset.action;
