@@ -378,7 +378,7 @@ function initApp(root) {
   }
 
   function attachRequestFormLivePreview(formEl) {
-    const update = () => {
+    const refresh = () => {
       const fd = new FormData(formEl);
       APP.requestFormValues = {
         type: fd.get("type") || "vacaciones",
@@ -400,21 +400,29 @@ function initApp(root) {
       const barsEl = root.querySelector('[data-role="allowance-bars"]');
       if (barsEl) barsEl.innerHTML = renderAllowanceBars(APP.requestFormValues);
 
-      if (!APP.reqCalDragging && dateFrom) {
-        const anchor = new Date(`${dateFrom}T00:00:00Z`);
-        const wantedYear = anchor.getUTCFullYear();
-        const wantedMonth = anchor.getUTCMonth();
-        if (wantedYear !== APP.requestCalMonth.year || wantedMonth !== APP.requestCalMonth.month) {
-          APP.requestCalMonth = { year: wantedYear, month: wantedMonth };
-          render();
-          return;
-        }
-      }
       syncReqCalSelection(dateFrom, dateTo);
+      return dateFrom;
     };
-    formEl.addEventListener("input", update);
-    formEl.addEventListener("change", update);
-    update();
+
+    // Solo cuando el propio campo de fecha cambia (tecleado o por el
+    // arrastre en el calendario) saltamos al mes de esa fecha; un
+    // renderizado cualquiera (p. ej. al navegar de mes) no debe mover
+    // la vista.
+    const handleFieldChange = () => {
+      const dateFrom = refresh();
+      if (APP.reqCalDragging || !dateFrom) return;
+      const anchor = new Date(`${dateFrom}T00:00:00Z`);
+      const wantedYear = anchor.getUTCFullYear();
+      const wantedMonth = anchor.getUTCMonth();
+      if (wantedYear !== APP.requestCalMonth.year || wantedMonth !== APP.requestCalMonth.month) {
+        APP.requestCalMonth = { year: wantedYear, month: wantedMonth };
+        render();
+      }
+    };
+
+    formEl.addEventListener("input", handleFieldChange);
+    formEl.addEventListener("change", handleFieldChange);
+    refresh();
   }
 
   function attachRequestCalendarDrag(formEl) {
