@@ -2121,6 +2121,14 @@ function initApp(root) {
     );
   }
 
+  function canCancelRequest(request) {
+    return (
+      request.status === "approved" &&
+      (APP.me.role === "admin" ||
+        (APP.me.role === "manager" && APP.me.department === request.department && APP.me.id !== request.userId))
+    );
+  }
+
   function renderAttachmentsBody(request, ctx) {
     const items = ctx.attachments || [];
     const listHtml = items.length
@@ -2292,6 +2300,15 @@ function initApp(root) {
         ${renderOverlapRow(deptName, overlap.sameDept, overlap.byDayDept, request.id, "dept")}
         ${renderOverlapRow("Toda la organización", overlap.all, overlap.byDayAll, request.id, "all")}
       </div>
+      ${
+        canCancelRequest(request)
+          ? `
+        <button type="button" class="btn btn-danger btn-block detail-cancel-btn" data-action="open-cancel-modal" data-id="${esc(
+          request.id
+        )}">Cancelar solicitud</button>
+      `
+          : ""
+      }
     `;
   }
 

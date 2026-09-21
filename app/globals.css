@@ -1207,6 +1207,7 @@ td.wrap { white-space: normal; }
 .detail-approval-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
 .detail-overlap-section { margin-top: 24px; }
+.detail-cancel-btn { margin-top: 24px; }
 .overlap-row {
   display: flex;
   align-items: center;
