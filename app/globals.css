@@ -977,6 +977,16 @@ td.wrap { white-space: normal; }
 .import-row-calamari input { margin-top: 3px; width: auto; }
 .import-row-disabled { opacity: 0.5; }
 
+.invite-result-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.invite-result-row:last-child { border-bottom: none; }
+
 .timesheet-io-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
 .export-timesheet-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .export-timesheet-form input[type="month"],

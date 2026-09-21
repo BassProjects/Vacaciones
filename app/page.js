@@ -1318,7 +1318,10 @@ function initApp(root) {
       <div class="card">
         <div class="flex-between" style="margin-bottom:16px">
           <div class="section-title" style="margin-bottom:0">Empleados (${APP.users.length})</div>
-          <button type="button" class="btn btn-primary btn-sm" data-action="open-add-worker-modal">+ Añadir trabajador</button>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-outline btn-sm" data-action="open-invite-modal">Invitar por correo</button>
+            <button type="button" class="btn btn-primary btn-sm" data-action="open-add-worker-modal">+ Añadir trabajador</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -1651,6 +1654,7 @@ function initApp(root) {
     else if (m.type === "cancel") inner = renderCancelModal();
     else if (m.type === "confirmOverAllowance") inner = renderConfirmOverAllowanceModal(m.extra);
     else if (m.type === "addWorker") inner = renderWorkerFormModal(null);
+    else if (m.type === "inviteWorkers") inner = renderInviteWorkersModal();
     else if (m.type === "editWorker") inner = renderWorkerFormModal(APP.users.find((u) => u.id === m.userId));
     else if (m.type === "resetPassword") inner = renderResetPasswordModal();
     else if (m.type === "deleteWorker") inner = renderDeleteWorkerModal();
@@ -1857,6 +1861,81 @@ function initApp(root) {
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
       APP.modalLoading ? "Guardando…" : "Guardar"
+    }</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderInviteWorkersModal() {
+    const m = APP.modal;
+    if (m.step === "result") {
+      const rows = [
+        ...m.results.created.map(
+          (r) => `
+          <div class="invite-result-row">
+            <span class="badge badge-approved">Invitado</span>
+            <span class="wrap">${esc(r.name)} — ${esc(r.email)} (usuario: ${esc(r.username)})${
+            r.mailSent ? "" : " · el correo no se pudo enviar"
+          }</span>
+          </div>`
+        ),
+        ...m.results.skipped.map(
+          (email) => `
+          <div class="invite-result-row">
+            <span class="badge badge-cancelled">Ya existía</span>
+            <span class="wrap">${esc(email)}</span>
+          </div>`
+        ),
+        ...m.results.failed.map(
+          (f) => `
+          <div class="invite-result-row">
+            <span class="badge badge-rejected">Error</span>
+            <span class="wrap">${esc(f.line)} — ${esc(f.error)}</span>
+          </div>`
+        ),
+      ].join("");
+
+      return `
+        <div class="modal-title">Resultado de las invitaciones</div>
+        <div class="modal-sub">${m.results.created.length} invitado(s) creado(s) y notificado(s) por correo.</div>
+        <div class="import-review-list">${rows || `<div class="invite-result-row">Sin resultados</div>`}</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" data-action="close-modal">Cerrar</button>
+        </div>
+      `;
+    }
+
+    const deptOptions =
+      `<option value="">— Sin departamento —</option>` +
+      APP.departments.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+    const roleOptions = ["worker", "manager", "admin"]
+      .map((r) => `<option value="${r}" ${r === "worker" ? "selected" : ""}>${roleLabel(r)}</option>`)
+      .join("");
+
+    return `
+      <div class="modal-title">Invitar trabajadores por correo</div>
+      <div class="modal-sub">Pega una lista de correos (uno por línea). Opcionalmente puedes indicar el nombre antes del correo separado por una coma: "Nombre Apellido, correo@empresa.com". Se creará una cuenta con contraseña temporal para cada uno y se le enviará un correo con sus datos de acceso.</div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <form data-action="invite-workers-form">
+        <div class="field">
+          <label>Correos</label>
+          <textarea name="emails" rows="8" placeholder="Ana Torres, ana@empresa.com&#10;diego@empresa.com" required></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Departamento</label>
+            <select name="department">${deptOptions}</select>
+          </div>
+          <div class="field">
+            <label>Rol</label>
+            <select name="role">${roleOptions}</select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
+      APP.modalLoading ? "Enviando…" : "Enviar invitaciones"
     }</button>
         </div>
       </form>
@@ -2616,6 +2695,11 @@ function initApp(root) {
         APP.modalError = "";
         render();
         break;
+      case "open-invite-modal":
+        APP.modal = { type: "inviteWorkers" };
+        APP.modalError = "";
+        render();
+        break;
       case "open-edit-worker-modal":
         APP.modal = { type: "editWorker", userId: el.dataset.id };
         APP.modalError = "";
@@ -2715,6 +2799,8 @@ function initApp(root) {
         return handleEditProfile(fd);
       case "add-worker-form":
         return handleAddWorker(fd);
+      case "invite-workers-form":
+        return handleInviteWorkers(fd);
       case "edit-worker-form":
         return handleEditWorker(fd, form);
       case "reset-password-form":
@@ -2997,6 +3083,46 @@ function initApp(root) {
       }
       APP.modal = null;
       showBanner("success", "Trabajador creado");
+      await loadBootstrap(true);
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleInviteWorkers(fd) {
+    const lines = String(fd.get("emails") || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!lines.length) {
+      APP.modalError = "Añade al menos un correo";
+      render();
+      return;
+    }
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lines,
+          department: fd.get("department") || null,
+          role: fd.get("role"),
+        }),
+      });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se han podido enviar las invitaciones";
+        render();
+        return;
+      }
+      APP.modal = { type: "inviteWorkers", step: "result", results: data };
+      render();
       await loadBootstrap(true);
     } catch (err) {
       APP.modalLoading = false;
