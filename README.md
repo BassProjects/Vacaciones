@@ -8,6 +8,11 @@ PostgreSQL y la interfaz de calendario. Estándar Electropolis **1.0.0**, planti
 
 ## Estado y activación
 
+Destino publicado: **https://app-vacaciones.dokploy.electropolis.es**.
+El esquema Python `0001_python` ya se ha preparado en el PostgreSQL de Dokploy.
+La transferencia de datos reales, el acceso de empleados y el envío Gmail siguen
+pendientes de configuración autorizada. Consulta el [registro de publicación](docs/deployment-python.md).
+
 El código contiene la aplicación Python y su procedimiento de transferencia desde
 el esquema anterior. **Una página de destino publicada no significa que ya se hayan
 transferido los empleados o activado los avisos.** Sin esquema preparado y un
