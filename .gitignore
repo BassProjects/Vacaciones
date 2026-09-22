@@ -1,6 +1,10 @@
 node_modules/
 .next/
 .env
-.env.local
+.env.*
+backups/
+dumps/
+*.dump
+*.backup
 npm-debug.log*
 .DS_Store

@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+.env*
+*.log
+coverage
+artifacts
+backups
+dumps
+*.dump
+*.backup

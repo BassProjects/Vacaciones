@@ -1,80 +1,61 @@
 # Vacaciones Sepiamary
 
-Aplicación web para gestionar las vacaciones y ausencias de los empleados de Sepiamary.
+Aplicación web para gestionar vacaciones y ausencias de los empleados de Sepiamary.
 
-## Stack
+## Estado de la migración
 
-- Next.js 14 (App Router, JavaScript)
-- PostgreSQL (driver `pg`, sin ORM)
-- Autenticación propia con cookies firmadas HMAC (scrypt para contraseñas)
-- Gmail/Google Workspace por SMTP (opcional, vía `nodemailer`) para
-  notificaciones por email
+La rama `migration/dokploy-assessment` prepara la migración de Vercel a Dokploy y documenta la evaluación técnica. **No equivale a una aplicación publicada ni a una base de datos transferida.** Conserva Next.js, React y PostgreSQL; no incorpora un segundo backend ni sustituye la aplicación por otra plantilla.
 
-## Desarrollo local
+La publicación está pendiente de corregir las dependencias afectadas por avisos de seguridad, resolver los hallazgos prioritarios y ensayar la restauración de datos y el transporte de correo. No retirar Vercel ni permitir escrituras en dos bases independientes durante la transición.
+
+- [Evaluación técnica y propuesta de refactorización](docs/technical-assessment.md)
+- [Configuración, transferencia de datos y recuperación en Dokploy](docs/migration-dokploy.md)
+
+## Tecnología y funciones existentes
+
+Next.js 14 (App Router, JavaScript), React 18 y PostgreSQL mediante `pg`. Las rutas de `app/api` constituyen el backend. La autenticación utiliza cookies firmadas HMAC y contraseñas derivadas con scrypt.
+
+La aplicación contiene gestión de empleados y roles, calendario de equipo, solicitudes y aprobaciones, medios días, festivos, importación histórica de Calamari, exportaciones mensuales y adjuntos en PostgreSQL. El correo heredado usa Gmail/Workspace mediante SMTP; los enlaces de Google Calendar permiten añadir eventos, no realizan sincronización automática.
+
+El informe técnico distingue las funciones identificadas en el código de las verificadas mediante pruebas.
+
+## Desarrollo y comprobaciones
+
+Entorno comprobado: Node.js 22.23.2 y npm, con las versiones exactas de `package-lock.json`.
 
 ```bash
-npm install
+npm ci --ignore-scripts --no-audit --no-fund
+npm test
+NEXT_TELEMETRY_DISABLED=1 npm run build
+node scripts/smoke-standalone.cjs
 ```
 
-Crea un fichero `.env.local` con la conexión a tu Postgres local:
+La prueba HTTP usa un proceso temporal con configuración sintética, sin acceder a PostgreSQL ni a credenciales de producción, y lo detiene al terminar. No ejecuta JavaScript en navegador ni sustituye las pruebas de negocio.
 
+```bash
+npm run check:release
 ```
-POSTGRES_URL=postgres://usuario:password@localhost:5432/vacaciones
-```
+
+Este último comando incluye auditoría de dependencias. En la evaluación inicial hay avisos altos/críticos, por lo que **la comprobación de publicación no está superada**. No ejecutar `npm audit fix --force` sin evaluar y probar los cambios de versión mayor.
+
+Para desarrollo funcional, configurar una base PostgreSQL de pruebas aislada y las variables de entorno indicadas en la guía de migración. `SESSION_SECRET` debe ser aleatorio y tener al menos 32 caracteres: ya no existe una clave predeterminada válida. No utilizar datos ni credenciales de producción para pruebas.
+
+El código heredado puede inicializar una base de desarrollo cuando `SCHEMA_MANAGEMENT` no es `external`; si falta administrador exige `BOOTSTRAP_ADMIN_PASSWORD` de al menos 16 caracteres. Ese mecanismo conserva compatibilidad con el desarrollo previo, pero **no es el procedimiento de migración a Dokploy**. En Dokploy el entrypoint exige `SCHEMA_MANAGEMENT=external` y un esquema previamente restaurado y comprobado; no crea tablas, empleados ni festivos desde las peticiones.
 
 ```bash
 npm run dev
 ```
 
-Al arrancar, la aplicación crea automáticamente las tablas necesarias y un
-usuario superusuario (`admin` / `admin2026`) si no existen. **Cambia esa
-contraseña en cuanto entres.**
+## Despliegue preparado para Dokploy
 
-## Despliegue en Vercel
+El Dockerfile usa salida standalone, un único servidor HTTP en `0.0.0.0:8080`, usuario 1000 y caché temporal en `/tmp`. `/health` comprueba que el servidor responde; `/ready` comprueba configuración y base de datos con respuesta genérica ante errores. Son comprobaciones distintas.
 
-1. Conecta este repositorio a un proyecto de Vercel.
-2. Añade una base de datos Postgres desde **Storage** (por ejemplo, la
-   integración de Neon del Marketplace) — Vercel inyecta automáticamente
-   las variables `POSTGRES_URL`, `POSTGRES_PRISMA_URL`,
-   `POSTGRES_URL_NON_POOLING`, etc.
-3. (Opcional) Añade en **Settings → Environment Variables**:
-   - `SESSION_SECRET`: cadena aleatoria larga para firmar las sesiones.
-   - `GMAIL_USER` y `GMAIL_APP_PASSWORD`: para que la app envíe por SMTP
-     las notificaciones de solicitudes, aprobaciones, rechazos y
-     cancelaciones (al trabajador y a los jefes del departamento) usando
-     una cuenta de tu Google Workspace (por ejemplo
-     `notificaciones@electropolis.es`). Ver más abajo cómo obtener la
-     contraseña de aplicación.
-   - `MAIL_FROM` (opcional): remitente que verán los destinatarios, por
-     ejemplo `Sepiamary Vacaciones <notificaciones@electropolis.es>`. Si
-     no se indica, se usa `GMAIL_USER` tal cual. Sin `GMAIL_USER` /
-     `GMAIL_APP_PASSWORD` la app funciona igual, simplemente no se envían
-     emails.
-4. Despliega. El esquema de base de datos y el usuario `admin` se crean
-   automáticamente en la primera petición.
+Las conexiones PostgreSQL verifican certificados por defecto. `DATABASE_SSL_MODE=disable` se reserva a la conexión interna autorizada de la plataforma, no a proveedores externos. No dejar una variable `POSTGRES_URL` del origen junto con `DATABASE_URL` del destino: el alias heredado tiene prioridad.
 
-### Enviar los emails desde una cuenta de Google Workspace
+Los adjuntos están en `request_attachments.data`, por lo que la copia de PostgreSQL debe incluirlos. No se requiere `/data` para el diseño actual. Las credenciales se introducen mediante enlaces seguros de la plataforma, nunca en el chat, Git o la imagen.
 
-La app envía el correo por SMTP (`smtp.gmail.com:465`) autenticándose con
-una cuenta de tu Workspace y una **contraseña de aplicación** (no la
-contraseña normal de esa cuenta). Pasos:
+## Correo y configuración de origen
 
-1. Decide qué cuenta enviará los correos, por ejemplo
-   `notificaciones@electropolis.es` (puede ser un alias o un buzón
-   dedicado; no hace falta que nadie la use para leer correo).
-2. Como administrador del Workspace, entra en esa cuenta y activa la
-   **verificación en 2 pasos** en myaccount.google.com/security — es
-   obligatoria para poder generar contraseñas de aplicación.
-3. En **myaccount.google.com/apppasswords**, crea una contraseña de
-   aplicación (elige un nombre como "Vacaciones app") y copia el código
-   de 16 caracteres que te da Google.
-4. En Vercel, añade:
-   - `GMAIL_USER` = `notificaciones@electropolis.es`
-   - `GMAIL_APP_PASSWORD` = la contraseña de 16 caracteres (sin espacios)
-5. Redeploy. A partir de ahí, cada solicitud/aprobación/rechazo/cancelación
-   se enviará desde esa cuenta.
+El transporte existente utiliza `smtp.gmail.com:465` con `GMAIL_USER`, `GMAIL_APP_PASSWORD` y, opcionalmente, `MAIL_FROM`. Las herramientas actuales de esta plataforma no autorizan SMTP arbitrario: añadir un dominio a la salida HTTPS no habilita el puerto 465. Antes de conservar los avisos e invitaciones en Dokploy debe acordarse y probarse un transporte HTTPS, por ejemplo Gmail API.
 
-Si el Workspace tiene bloqueado el "acceso de apps menos seguras" o las
-contraseñas de aplicación mediante política de administrador, un
-administrador debe habilitarlas para esa cuenta en el **Admin Console**
-(Seguridad → Autenticación → Verificación en 2 pasos).
+`APP_URL` debe apuntar a la dirección HTTPS real del destino. El código heredado también reconoce `VERCEL_URL`; sin configurar la URL del destino, algunos correos seguirían enlazando a Vercel. Esta rama no cambia las variables, el dominio, los datos ni la configuración del proyecto Vercel.
