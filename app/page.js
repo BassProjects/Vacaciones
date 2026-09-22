@@ -1270,11 +1270,30 @@ function initApp(root) {
         <button type="button" class="tab-btn ${
           APP.adminTab === "informes" ? "active" : ""
         }" data-action="admin-tab" data-tab="informes">Informes</button>
+        <button type="button" class="tab-btn ${
+          APP.adminTab === "avanzado" ? "active" : ""
+        }" data-action="admin-tab" data-tab="avanzado">Avanzado</button>
       </div>
       ${APP.adminTab === "empleados" ? renderAdminEmployees() : ""}
       ${APP.adminTab === "festivos" ? renderAdminHolidays() : ""}
       ${APP.adminTab === "solicitudes" ? renderAdminAllRequests() : ""}
       ${APP.adminTab === "informes" ? renderAdminReports() : ""}
+      ${APP.adminTab === "avanzado" ? renderAdminDangerZone() : ""}
+    `;
+  }
+
+  function renderAdminDangerZone() {
+    return `
+      <div class="card danger-zone-card">
+        <div class="section-title">Restablecer todos los datos</div>
+        <p class="modal-sub" style="margin-bottom:16px">
+          Borra <b>todos</b> los trabajadores (excepto los superusuarios), todas sus
+          solicitudes y adjuntos, y los días festivos importados. La configuración de
+          días de vacaciones por defecto vuelve a su valor de fábrica. Los superusuarios
+          no se ven afectados. <b>Esta acción no se puede deshacer.</b>
+        </p>
+        <button type="button" class="btn btn-danger" data-action="open-reset-data-modal">Restablecer todos los datos</button>
+      </div>
     `;
   }
 
@@ -1655,6 +1674,7 @@ function initApp(root) {
     else if (m.type === "confirmOverAllowance") inner = renderConfirmOverAllowanceModal(m.extra);
     else if (m.type === "addWorker") inner = renderWorkerFormModal(null);
     else if (m.type === "inviteWorkers") inner = renderInviteWorkersModal();
+    else if (m.type === "resetData") inner = renderResetDataModal();
     else if (m.type === "editWorker") inner = renderWorkerFormModal(APP.users.find((u) => u.id === m.userId));
     else if (m.type === "resetPassword") inner = renderResetPasswordModal();
     else if (m.type === "deleteWorker") inner = renderDeleteWorkerModal();
@@ -1936,6 +1956,30 @@ function initApp(root) {
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
       APP.modalLoading ? "Enviando…" : "Enviar invitaciones"
+    }</button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderResetDataModal() {
+    return `
+      <div class="modal-title">Restablecer todos los datos</div>
+      <div class="modal-sub">
+        Vas a borrar todos los trabajadores (excepto los superusuarios), todas sus
+        solicitudes y adjuntos, y los días festivos importados. Esta acción no se
+        puede deshacer.
+      </div>
+      ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
+      <form data-action="reset-data-form">
+        <div class="field">
+          <label>Escribe <b>BORRAR TODO</b> para confirmar</label>
+          <input type="text" name="confirm" required pattern="BORRAR TODO" autocomplete="off" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger" ${APP.modalLoading ? "disabled" : ""}>${
+      APP.modalLoading ? "Restableciendo…" : "Restablecer todos los datos"
     }</button>
         </div>
       </form>
@@ -2700,6 +2744,11 @@ function initApp(root) {
         APP.modalError = "";
         render();
         break;
+      case "open-reset-data-modal":
+        APP.modal = { type: "resetData" };
+        APP.modalError = "";
+        render();
+        break;
       case "open-edit-worker-modal":
         APP.modal = { type: "editWorker", userId: el.dataset.id };
         APP.modalError = "";
@@ -2801,6 +2850,8 @@ function initApp(root) {
         return handleAddWorker(fd);
       case "invite-workers-form":
         return handleInviteWorkers(fd);
+      case "reset-data-form":
+        return handleResetData(fd);
       case "edit-worker-form":
         return handleEditWorker(fd, form);
       case "reset-password-form":
@@ -3123,6 +3174,41 @@ function initApp(root) {
       }
       APP.modal = { type: "inviteWorkers", step: "result", results: data };
       render();
+      await loadBootstrap(true);
+    } catch (err) {
+      APP.modalLoading = false;
+      APP.modalError = "Error de conexión";
+      render();
+    }
+  }
+
+  async function handleResetData(fd) {
+    if (fd.get("confirm") !== "BORRAR TODO") {
+      APP.modalError = 'Escribe exactamente "BORRAR TODO" para confirmar';
+      render();
+      return;
+    }
+    APP.modalLoading = true;
+    APP.modalError = "";
+    render();
+    try {
+      const res = await fetch("/api/admin/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "BORRAR TODO" }),
+      });
+      const data = await res.json();
+      APP.modalLoading = false;
+      if (!res.ok) {
+        APP.modalError = data.error || "No se han podido restablecer los datos";
+        render();
+        return;
+      }
+      APP.modal = null;
+      showBanner(
+        "success",
+        `Datos restablecidos: ${data.usersDeleted} trabajador(es), ${data.requestsDeleted} solicitud(es) y ${data.holidaysDeleted} festivo(s) eliminados`
+      );
       await loadBootstrap(true);
     } catch (err) {
       APP.modalLoading = false;

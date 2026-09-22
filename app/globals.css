@@ -987,6 +987,8 @@ td.wrap { white-space: normal; }
 }
 .invite-result-row:last-child { border-bottom: none; }
 
+.danger-zone-card { border-color: var(--red-fg); }
+
 .timesheet-io-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
 .export-timesheet-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .export-timesheet-form input[type="month"],
