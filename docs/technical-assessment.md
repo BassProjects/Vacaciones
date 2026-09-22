@@ -1,5 +1,13 @@
 # Evaluación y respuesta a los hallazgos
 
+> Decisión posterior, 22-09-2026: el responsable ha elegido empezar desde cero con
+> un administrador `electropolis`, sin importar Vercel, y usar SMTP, no Gmail API.
+> El alta requiere un secreto válido por el canal seguro. El correo permanece pausado
+> mientras falte SMTP autorizado por la plataforma. Ver [SMTP](smtp.md).
+> El contenido siguiente conserva el historial del trabajo anterior; no implica
+> que ahora sean obligatorias la importación del origen o la configuración OAuth.
+
+
 Fecha: 22-09-2026. La evaluación inicial se hizo sobre el repositorio Next.js, base
 `654c2fd4d38b7a5107670428d3c6438b8d46077f`. La primera adaptación quedó en
 `0d2913d50ca0b2a05311b51f41aa31a107d1094b`. El responsable solicitó después sustituir

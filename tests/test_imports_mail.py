@@ -1,10 +1,5 @@
-import base64
 import io
-import json
-from email import policy
-from email.parser import BytesParser
 
-import httpx
 import pytest
 from conftest import send
 from openpyxl import Workbook, load_workbook
@@ -12,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.config import Settings
 from app.file_parsers import parse_calamari, parse_holidays
-from app.mailer import TEMPLATES, DeliveryError, GmailTransport, drain, queue_mail
+from app.mailer import DeliveryError, drain, queue_mail
 from app.models import ImportBatch, LeaveRequest, Outbox
 
 
@@ -176,70 +171,15 @@ def test_export_does_not_turn_employee_text_into_formulas(clients, database):
     workbook.close()
 
 
-def gmail_settings():
+def smtp_settings():
     return Settings(
         database_url="",
         environment="test",
         app_url="http://testserver",
         mail_enabled=True,
-        gmail_from="notifications@example.com",
-        google_client_id="synthetic-client",
-        google_client_secret="synthetic-secret-for-tests",
-        gmail_refresh_token="synthetic-refresh-for-tests",
+        smtp_user="notifications@example.com",
+        smtp_password="synthetic-password-for-tests",
     )
-
-
-def test_gmail_api_uses_oauth_and_rfc_mime_without_leaking_private_notes():
-    calls = []
-
-    def handle(request):
-        calls.append(request)
-        if request.url.host == "oauth2.googleapis.com":
-            assert b"grant_type=refresh_token" in request.content
-            return httpx.Response(
-                200, json={"access_token": "synthetic-access", "expires_in": 3600}
-            )
-        assert request.url.host == "gmail.googleapis.com"
-        assert request.headers["authorization"] == "Bearer synthetic-access"
-        raw = json.loads(request.content)["raw"]
-        message = BytesParser(policy=policy.default).parsebytes(base64.urlsafe_b64decode(raw))
-        assert message["To"] == "worker@example.com"
-        html = message.get_body(preferencelist=("html",)).get_content()
-        assert "&lt;script&gt;" in html and "<script>" not in html
-        return httpx.Response(200, json={"id": "synthetic-message"})
-
-    client = httpx.Client(transport=httpx.MockTransport(handle))
-    transport = GmailTransport(gmail_settings(), client)
-    html = TEMPLATES.get_template("notification.html").render(
-        name="<script>",
-        worker_name="Prueba",
-        event="created",
-        date_from="2026-10-19",
-        date_to="2026-10-20",
-        app_url="http://testserver",
-    )
-    assert (
-        transport.send("worker@example.com", "Prueba", html, "Prueba", "test-message")
-        == "synthetic-message"
-    )
-    assert len(calls) == 2
-    client.close()
-
-
-@pytest.mark.parametrize(
-    "status,state", [(429, "pending"), (400, "failed"), (403, "failed"), (500, "uncertain")]
-)
-def test_gmail_classifies_safe_retries_and_uncertain_delivery(status, state):
-    def handle(request):
-        if request.url.host == "oauth2.googleapis.com":
-            return httpx.Response(200, json={"access_token": "synthetic", "expires_in": 3600})
-        return httpx.Response(status, json={"error": {"errors": []}})
-
-    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
-        transport = GmailTransport(gmail_settings(), client)
-        with pytest.raises(DeliveryError) as caught:
-            transport.send("worker@example.com", "Test", "Test", "Test", "id")
-        assert caught.value.state == state
 
 
 @pytest.mark.postgres
@@ -250,7 +190,7 @@ def test_outbox_delivery_is_bounded_and_does_not_retry_uncertain_messages(databa
 
         def send(self, *args):
             self.calls += 1
-            raise DeliveryError("uncertain", "GMAIL_DELIVERY_UNCERTAIN")
+            raise DeliveryError("uncertain", "SMTP_DELIVERY_UNCERTAIN")
 
         def close(self):
             pass
@@ -271,9 +211,9 @@ def test_outbox_delivery_is_bounded_and_does_not_retry_uncertain_messages(databa
         )
         db.commit()
     fake = FakeTransport()
-    result = drain(database, gmail_settings(), transport=fake)
+    result = drain(database, smtp_settings(), transport=fake)
     assert result["uncertain"] == 1 and fake.calls == 1
-    result = drain(database, gmail_settings(), transport=fake)
+    result = drain(database, smtp_settings(), transport=fake)
     assert result["uncertain"] == 0 and fake.calls == 1
     with database.sessions() as db:
         item = db.scalar(select(Outbox))

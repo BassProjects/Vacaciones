@@ -32,19 +32,28 @@ Antes de futuras migraciones: copia verificada, compatibilidad, ensayo y autoriz
 correspondientes. El `downgrade` generado no es un procedimiento de recuperación de
 producción: no ejecutarlo para eliminar datos o hacer funcionar una imagen anterior.
 
+## Alta desde cero
+
+El responsable ha elegido no importar Vercel. El alta inicial `electropolis` puede
+realizarse sin email; necesita `BOOTSTRAP_ADMIN_PASSWORD` de 16 a 256 caracteres
+por el canal seguro y obliga a cambiarlo antes del primer uso. Ejecutar el CLI
+`bootstrap-admin` una sola vez mediante una tarea pausada `initial-administrator`,
+sin contraseñas en su comando. Consultar `docs/smtp.md`. No borrar cuentas previas.
+
 ## Correo y mantenimiento
 
 La ampliación operativa actual del conector ofrece tareas nativas `schedule_*`, aunque
 la guía común 1.0.0 copiada describe cron como pendiente. No modifica la versión del
 estándar ni concede recursos adicionales.
 
-Crear `gmail-outbox`, zona `Europe/Madrid`, `*/5 * * * *`, con el comando:
+Conservar el nombre estable `gmail-outbox` (ahora transporte SMTP), zona `Europe/Madrid`, `*/5 * * * *`, con el comando:
 
 ```sh
 /app/.venv/bin/python -m app.cli mail-drain --limit 10 --seconds 45
 ```
 
-Mantenerla pausada hasta tener `MAIL_ENABLED=true`, credenciales aplicadas y una prueba
+Mantenerla pausada: SMTP necesita habilitación TCP 465/587 por la plataforma, no
+expuesta por el conector actual. Antes de activar hacen falta credenciales aplicadas y una prueba
 de envío real autorizada. El código limita el lote y las llamadas, pero no se presupone
 un timeout global de ejecución de Dokploy. El bloqueo asesor evita procesadores de
 correo simultáneos. Una entrega incierta requiere revisión; no se repite automáticamente.

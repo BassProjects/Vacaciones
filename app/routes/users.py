@@ -176,9 +176,7 @@ def invite_employees(
     payload: Invitations, request: Request, me=Depends(administrator), db=Depends(get_db)
 ):
     if not request.app.state.settings.mail_enabled:
-        raise HTTPException(
-            503, "Las invitaciones necesitan que Gmail API esté configurada y activada"
-        )
+        raise HTTPException(503, "Las invitaciones necesitan que SMTP esté configurado y activado")
     lock_configuration(db)
     department_valid(db, payload.department, payload.role)
     from pydantic import EmailStr, TypeAdapter

@@ -48,7 +48,7 @@
 <p>La importación general de festivos está en el calendario principal. Los cambios no recalculan silenciosamente los saldos históricos.</p></details>
 <details class="card"><summary><strong>Sustitución temporal de responsables</strong></summary>
 <form data-endpoint="/api/admin/delegations" data-method="POST"><div class="field"><label>Responsable titular<select name="managerId" data-user-select required></select></label></div><div class="field"><label>Sustituto<select name="delegateId" data-user-select required></select></label></div><div class="field"><label>Desde<input name="dateFrom" type="date" required></label></div><div class="field"><label>Hasta<input name="dateTo" type="date" required></label></div><p>El sustituto recibe acceso a las solicitudes del departamento durante el período. Nadie puede aprobar su propia solicitud.</p><button class="btn btn-primary">Crear delegación</button><p class="result" role="status"></p></form><button id="load-delegations" class="btn btn-outline">Ver delegaciones</button><div id="delegations-list"></div></details>
-<details class="card"><summary><strong>Correo Gmail API</strong></summary><p id="mail-status"></p>
+<details class="card"><summary><strong>Correo SMTP</strong></summary><p id="mail-status"></p>
 <p>Los avisos se procesan mediante una tarea de Dokploy, con exclusión mutua y reintentos limitados. Una entrega incierta requiere revisión para evitar duplicados.</p>
 <p>El alta por correo no envía contraseñas. El administrador establece el acceso inicial por el canal interno acordado; la recuperación autónoma mediante enlace no está activada en esta entrega.</p>
 <button id="load-outbox" class="btn btn-outline">Ver bandeja de salida</button><div id="outbox-list"></div></details>

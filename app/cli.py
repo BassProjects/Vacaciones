@@ -47,9 +47,9 @@ def migrate(database):
 
 
 def bootstrap_admin(database):
-    email = str(
-        TypeAdapter(EmailStr).validate_python(os.environ.get("BOOTSTRAP_ADMIN_EMAIL", ""))
-    ).lower()
+    # Initial local access does not require a mail service or a fabricated email address.
+    raw_email = os.environ.get("BOOTSTRAP_ADMIN_EMAIL", "").strip()
+    email = str(TypeAdapter(EmailStr).validate_python(raw_email)).lower() if raw_email else None
     username = os.environ.get("BOOTSTRAP_ADMIN_USERNAME", "").strip().lower()
     password = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD", "")
     if not username or len(username) > 80 or len(password) < 16:
@@ -67,12 +67,8 @@ def bootstrap_admin(database):
                 "An active administrator already exists; "
                 "use the authenticated administration interface"
             )
-        if db.scalar(
-            select(Employee.id).where((Employee.username == username) | (Employee.email == email))
-        ):
-            raise ValueError(
-                "The selected administrator identity already exists; do not overwrite it"
-            )
+        if db.scalar(select(func.count()).select_from(Employee)):
+            raise ValueError("Initial setup requires an empty installation; no users were removed")
         password_hash, salt, scheme = hash_password(password)
         user = Employee(
             id=new_id(),

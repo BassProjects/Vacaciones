@@ -9,22 +9,23 @@ PostgreSQL y la interfaz de calendario. Estándar Electropolis **1.0.0**, planti
 ## Estado y activación
 
 Destino publicado: **https://app-vacaciones.dokploy.electropolis.es**.
-El esquema Python `0001_python` ya se ha preparado en el PostgreSQL de Dokploy.
-La transferencia de datos reales, el acceso de empleados y el envío Gmail siguen
-pendientes de configuración autorizada. Consulta el [registro de publicación](docs/deployment-python.md).
+El responsable ha decidido empezar desde cero, sin importar datos de Vercel, con
+un único administrador cuyo usuario será `electropolis`. No se borra el origen.
+El esquema Python `0001_python` ya está preparado. El alta queda pendiente de una
+contraseña inicial válida introducida por el canal seguro; no hay acceso predeterminado.
+El email no es obligatorio para esa primera cuenta. Se exige cambiar la contraseña
+al entrar antes de acceder al resto de funciones.
 
-El código contiene la aplicación Python y su procedimiento de transferencia desde
-el esquema anterior. **Una página de destino publicada no significa que ya se hayan
-transferido los empleados o activado los avisos.** Sin esquema preparado y un
-administrador activo, la portada muestra «activación pendiente» y `/ready` responde
-503. `/health` sigue comprobando únicamente que el servidor está vivo.
+La política existente exige 16 a 256 caracteres para el secreto de alta inicial.
+El CLI solo permite el alta en una instalación sin usuarios y nunca elimina cuentas.
+Sin administrador activo, la portada muestra «activación pendiente» y `/ready`
+responde 503; `/health` comprueba únicamente que el servidor responde.
 
-No se incluyen usuarios, contraseñas ni festivos inventados. La base de origen,
-los justificantes reales y las credenciales de Gmail deben incorporarse mediante
-el procedimiento autorizado. No retirar Vercel ni permitir escrituras simultáneas
-en dos bases independientes antes de terminar la conciliación y el corte.
-Consulta el [estado de verificación](docs/verification-python.md) y el
-[procedimiento de migración](docs/migration-dokploy.md).
+El correo se ha cambiado a **SMTP con contraseña**, sin Gmail API ni OAuth. Su
+activación sigue pendiente del buzón, su contraseña SMTP y una capacidad de salida
+TCP autorizada por la plataforma: el conector actual no permite habilitar 465/587.
+`MAIL_ENABLED=false` y la tarea de correo permanece pausada. Ver [SMTP](docs/smtp.md)
+y el [informe de estas comprobaciones](docs/verification-smtp.md).
 
 La recuperación autónoma mediante enlace no está activada en esta entrega: la
 herramienta de edición bloqueó el formulario correspondiente. El administrador
@@ -61,7 +62,7 @@ no se publica el año de nacimiento.
 | Servicio HTTP | FastAPI, Pydantic, Uvicorn; `0.0.0.0:8080` |
 | Datos | PostgreSQL 16, SQLAlchemy y migraciones Alembic |
 | Interfaz | Jinja2, HTML/CSS local y módulos JavaScript nativos |
-| Correo | Gmail API HTTPS, bandeja de salida transaccional |
+| Correo | SMTP con TLS, bandeja de salida transaccional |
 | Calidad | uv, lockfile, Ruff, pytest, Chromium/Playwright en pruebas |
 | Publicación | Docker por digest, usuario 1000, raíz de solo lectura y `/tmp` |
 
@@ -70,7 +71,7 @@ no se publica el año de nacimiento.
 definen el esquema. `mailer.py` y `cli.py` implementan el correo y la operación.
 `file_worker.py` analiza documentos en procesos supervisados con límites.
 `app/templates/` y `app/static/js/` contienen la interfaz. No hay runtime Node,
-Next.js, SMTP, GitHub Actions ni procesos residentes adicionales.
+Next.js, OAuth, GitHub Actions ni procesos residentes adicionales.
 
 OpenAPI está disponible para administradores autenticados en `/api/openapi.json`.
 El panel `/admin` permite configurar políticas, jornadas, calendarios,
@@ -130,7 +131,7 @@ No se usan los alias `POSTGRES_URL`, `VERCEL_URL` ni `SESSION_SECRET` heredados.
 No introduzcas secretos en el chat, Git, pruebas o imágenes. Utiliza el enlace
 seguro de la plataforma cuando la persona esté preparada; no lo generes con
 antelación. `MAIL_ENABLED=false` hasta terminar la configuración y las pruebas
-reales de [Gmail API](docs/gmail-api.md).
+reales de [SMTP](docs/smtp.md).
 
 La secuencia es: checks → commit/push → construcción Docker → despliegue del SHA
 subido → operación explícita de migración → comprobaciones HTTPS y funcionales.

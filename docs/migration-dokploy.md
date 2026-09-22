@@ -1,5 +1,13 @@
 # Migración de Vercel a Dokploy · versión Python
 
+> Decisión posterior, 22-09-2026: el responsable ha elegido empezar desde cero con
+> un administrador `electropolis`, sin importar Vercel, y usar SMTP, no Gmail API.
+> El alta requiere un secreto válido por el canal seguro. El correo permanece pausado
+> mientras falte SMTP autorizado por la plataforma. Ver [SMTP](smtp.md).
+> El contenido siguiente conserva el historial del trabajo anterior; no implica
+> que ahora sean obligatorias la importación del origen o la configuración OAuth.
+
+
 ## Alcance y estados
 
 Esta guía sustituye la preparación anterior de Next.js. El responsable solicitó

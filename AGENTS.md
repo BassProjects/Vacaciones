@@ -41,8 +41,10 @@ la acción habitual es desactivar. Los eventos de auditoría son de solo inserci
 No pedir secretos en el chat ni incluirlos en código, logs, pruebas o Docker. Utiliza
 `application_secret_link` solamente cuando el usuario esté preparado para introducirlos.
 No generar enlaces con caducidad por adelantado. Los valores de entorno se consultan por nombre,
-no se imprimen. `MAIL_ENABLED=false` hasta comprobar Gmail API con un buzón autorizado.
-El correo sale por HTTPS mediante HTTPX respetando el proxy; no SMTP ni proxy bypass.
+no se imprimen. El responsable ha elegido SMTP y comienzo desde cero; consulta `docs/smtp.md`.
+`MAIL_ENABLED=false` hasta tener SMTP autorizado por la plataforma, credenciales y prueba real.
+El conector actual no habilita SMTP TCP: no usar túneles ni eludir el proxy o las restricciones.
+No se necesita importar el origen para crear la primera cuenta; no se borra Vercel.
 
 Las tareas nativas de Dokploy están disponibles en la plataforma actual, como ampliación operativa
 del estándar 1.0.0: consulta los contratos reales de `schedule_*`. Publica el CLI antes de crear

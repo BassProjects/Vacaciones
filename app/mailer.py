@@ -1,124 +1,22 @@
-"""Gmail API transport and bounded outbox delivery. No SMTP or background worker."""
+"""Bounded transactional outbox using SMTP. No OAuth or background web worker."""
 
-import base64
-import json
 import secrets
 import time
 from datetime import timedelta
-from email.message import EmailMessage
 from pathlib import Path
 
-import httpx
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from app.models import Outbox, PasswordReset, now
 from app.security import digest
+from app.smtp_transport import DeliveryError, SMTPTransport
 
 TEMPLATES = Environment(
     loader=FileSystemLoader(Path(__file__).parent / "templates" / "email"),
     autoescape=select_autoescape(["html", "xml"]),
 )
-
-
-class DeliveryError(Exception):
-    def __init__(self, state, code, retry_after=60):
-        self.state, self.code, self.retry_after = state, code, retry_after
-        super().__init__(code)
-
-
-class GmailTransport:
-    def __init__(self, settings, client=None):
-        self.settings = settings
-        self.client = client or httpx.Client(
-            timeout=httpx.Timeout(10, connect=5), trust_env=True, follow_redirects=False
-        )
-        self.owned_client = client is None
-        self.access_token = None
-        self.expires = 0
-
-    def close(self):
-        if self.owned_client:
-            self.client.close()
-
-    def _json_request(self, method, url, **kwargs):
-        with self.client.stream(method, url, **kwargs) as response:
-            content = bytearray()
-            for part in response.iter_bytes():
-                content.extend(part)
-                if len(content) > 256 * 1024:
-                    raise ValueError("GMAIL_RESPONSE_TOO_LARGE")
-            try:
-                body = json.loads(content)
-            except (ValueError, UnicodeDecodeError):
-                body = {}
-            return response.status_code, body
-
-    def _token(self):
-        if self.access_token and time.monotonic() < self.expires:
-            return self.access_token
-        try:
-            status, body = self._json_request(
-                "POST",
-                "https://oauth2.googleapis.com/token",
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": self.settings.google_client_id,
-                    "client_secret": self.settings.google_client_secret,
-                    "refresh_token": self.settings.gmail_refresh_token,
-                },
-            )
-        except (httpx.HTTPError, ValueError) as exc:
-            raise DeliveryError("pending", "GMAIL_TOKEN_UNAVAILABLE") from exc
-        if status == 429 or status >= 500:
-            raise DeliveryError("pending", "GMAIL_TOKEN_UNAVAILABLE")
-        if status != 200 or not isinstance(body.get("access_token"), str):
-            raise DeliveryError("failed", "GMAIL_AUTH_REJECTED")
-        self.access_token = body["access_token"]
-        self.expires = time.monotonic() + max(1, min(int(body.get("expires_in", 300)), 3600) - 30)
-        return self.access_token
-
-    def send(self, recipient, subject, html, text_body, message_key):
-        token = self._token()
-        message = EmailMessage()
-        message["To"], message["From"], message["Subject"] = (
-            recipient,
-            self.settings.gmail_from,
-            subject,
-        )
-        # Stable Message-ID helps investigation; Gmail does NOT promise deduplication by it.
-        message["Message-ID"] = f"<{message_key}@vacaciones.electropolis.invalid>"
-        message.set_content(text_body)
-        message.add_alternative(html, subtype="html")
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        try:
-            status, body = self._json_request(
-                "POST",
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-                headers={"Authorization": f"Bearer {token}"},
-                json={"raw": raw},
-            )
-        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
-            raise DeliveryError("pending", "GMAIL_CONNECTION_FAILED") from exc
-        except (httpx.HTTPError, ValueError) as exc:
-            # The provider may have accepted it. Never automatically retry uncertain delivery.
-            raise DeliveryError("uncertain", "GMAIL_DELIVERY_UNCERTAIN") from exc
-        if status == 429:
-            raise DeliveryError("pending", "GMAIL_RATE_LIMIT")
-        if status == 401:
-            self.access_token = None
-            raise DeliveryError("pending", "GMAIL_ACCESS_EXPIRED")
-        if status == 403:
-            reasons = {e.get("reason") for e in body.get("error", {}).get("errors", [])}
-            if reasons & {"rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"}:
-                raise DeliveryError("pending", "GMAIL_QUOTA_LIMIT", retry_after=300)
-            raise DeliveryError("failed", "GMAIL_PERMISSION_DENIED")
-        if status >= 500 or 200 <= status < 300 and not body.get("id"):
-            raise DeliveryError("uncertain", "GMAIL_DELIVERY_UNCERTAIN")
-        if not 200 <= status < 300:
-            raise DeliveryError("failed", "GMAIL_MESSAGE_REJECTED")
-        return str(body["id"])
 
 
 def queue_mail(db, event_key, recipient, subject, context, template="notification.html"):
@@ -155,7 +53,7 @@ def drain(database, settings, limit=10, seconds=45, transport=None):
     if not settings.mail_enabled:
         return {**counts, "disabled": True}
     started = time.monotonic()
-    transport = transport or GmailTransport(settings)
+    transport = transport or SMTPTransport(settings)
     with database.engine.connect() as connection:
         locked = connection.execute(text("SELECT pg_try_advisory_lock(768429115)")).scalar()
         connection.commit()

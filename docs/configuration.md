@@ -11,28 +11,30 @@ La plataforma aplica cambios de configuración y secretos en la siguiente public
 | `APP_URL` | Origen HTTPS real, sin ruta, parámetros ni credenciales. |
 | `TZ` | `Europe/Madrid`; los instantes se guardan en UTC. |
 | `MAIL_ENABLED` | `false` hasta comprobar el buzón y sus credenciales. |
-| `GMAIL_FROM` | Buzón remitente autorizado. |
-| `GOOGLE_CLIENT_ID` | Identificador del cliente OAuth autorizado. |
-| `GOOGLE_CLIENT_SECRET` | Secreto OAuth, exclusivamente por el canal seguro. |
-| `GMAIL_REFRESH_TOKEN` | Credencial de renovación OAuth, exclusivamente por el canal seguro. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURITY` | `smtp.gmail.com` / `465` / `ssl`, o STARTTLS en 587. |
+| `SMTP_USER` | Buzón SMTP completo. Alias compatible: `GMAIL_USER`. |
+| `SMTP_PASSWORD` | Secreto SMTP por canal seguro. Alias compatible: `GMAIL_APP_PASSWORD`. |
+| `MAIL_FROM` | Remitente autorizado opcional; por defecto el usuario SMTP. |
 
 No se necesitan `SESSION_SECRET`, `VERCEL_URL`, los alias `POSTGRES_URL`/
 `POSTGRES_PRISMA_URL`/`POSTGRES_URL_NON_POOLING`, `SCHEMA_MANAGEMENT`,
-`GMAIL_USER` ni `GMAIL_APP_PASSWORD`. No copiar indiscriminadamente las variables de Vercel.
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` ni `GMAIL_REFRESH_TOKEN`.
+No copiar indiscriminadamente las variables de Vercel.
 Las sesiones nuevas son tokens opacos revocables; las sesiones antiguas no se transfieren.
 
 ## Capacidades
 
 Configurar `database=true`, `persistent_data=false`. Los justificantes forman parte de
 PostgreSQL, no de un volumen `/data`. Solo se requiere un servicio HTTP en 8080.
-Para Gmail, autorizar HTTPS a `oauth2.googleapis.com` y `gmail.googleapis.com`.
-HTTPX respeta el proxy; no habilitar SMTP ni exponer la base de datos.
+SMTP requiere una capacidad TCP autorizada de la plataforma. El conector actual
+no habilita 465/587; no confundir egress HTTPS con SMTP. El envío se mantiene apagado.
+No exponer la base de datos ni eludir el proxy. Consultar `smtp.md`.
 
 ## Alta inicial y transferencia
 
-`BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_NAME` y
-`BOOTSTRAP_ADMIN_PASSWORD` solo son necesarios para un alta explícita cuando no exista
-un administrador activo transferido. La contraseña debe tener al menos 16 caracteres;
+`BOOTSTRAP_ADMIN_EMAIL` es opcional. `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_NAME` y
+`BOOTSTRAP_ADMIN_PASSWORD` solo son necesarios para un alta explícita cuando no existan
+usuarios en la instalación. El responsable ha elegido partir de cero. La contraseña debe tener entre 16 y 256 caracteres;
 se exige cambiarla al entrar. El CLI rechaza sobrescribir una cuenta o repetir el alta
 si ya existe un administrador activo. Retirar estas variables tras comprobar el acceso.
 

@@ -44,7 +44,7 @@ async function refresh() {
   for (const name of ['defaultAllowance','overAllowance','maxAwayPercent']) form.elements[name].value = configuration[name];
   const departments = document.querySelector('#departments-list'); departments.replaceChildren();
   configuration.departments.forEach(d => entry(departments, `${d.name} (${d.id})`, `Cobertura mínima: ${d.minimumPresent} personas`));
-  document.querySelector('#mail-status').textContent = configuration.mailEnabled ? 'Gmail API activada.' : 'Gmail API desactivada: no se envían correos.';
+  document.querySelector('#mail-status').textContent = configuration.mailEnabled ? 'SMTP activado.' : 'SMTP desactivado: no se envían correos.';
   document.querySelectorAll('[data-current-year]').forEach(input => { if (!input.value) input.value = todayISO().slice(0,4); });
   readWorkSchedule();
   status.textContent = 'Configuración cargada.';
