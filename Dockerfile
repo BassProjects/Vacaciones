@@ -1,28 +1,20 @@
-FROM node:22.23.2-bookworm-slim AS build
+FROM docker.io/library/python@sha256:2582a354217437c4c50f5668852c024c343b0d1361c8e16214684a867f6c35cd AS build
+ENV UV_PYTHON_DOWNLOADS=never UV_NO_CACHE=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
+RUN python -m venv /opt/uv && /opt/uv/bin/pip install --no-cache-dir uv==0.12.17
+ENV PATH=/opt/uv/bin:$PATH
 COPY . .
-# A failing release audit blocks this image; do not bypass it with --force.
-RUN npm run check:release
+RUN sh scripts/check.sh && uv sync --locked --no-dev
 
-FROM node:22.23.2-bookworm-slim AS runtime
+FROM docker.io/library/python@sha256:2582a354217437c4c50f5668852c024c343b0d1361c8e16214684a867f6c35cd
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH=/app/.venv/bin:$PATH
 WORKDIR /app
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    HOSTNAME=0.0.0.0 \
-    PORT=8080 \
-    TZ=Europe/Madrid \
-    SCHEMA_MANAGEMENT=external
-COPY --from=build --chown=1000:1000 /app/.next/standalone ./
-COPY --from=build --chown=1000:1000 /app/.next/static ./.next/static
-COPY --from=build --chown=1000:1000 /app/public ./public
-COPY --chown=1000:1000 scripts/start-dokploy.cjs ./scripts/start-dokploy.cjs
-COPY --chown=1000:1000 lib/runtimeConfig.cjs ./lib/runtimeConfig.cjs
-RUN mkdir -p .next && rm -rf .next/cache && ln -s /tmp/next-cache .next/cache
+COPY --from=build --chown=1000:1000 /app/.venv /app/.venv
+COPY --from=build --chown=1000:1000 /app/app /app/app
+COPY --from=build --chown=1000:1000 /app/migrations /app/migrations
+COPY --from=build --chown=1000:1000 /app/alembic.ini /app/alembic.ini
+COPY --from=build --chown=1000:1000 /app/service.yaml /app/service.yaml
+COPY --from=build --chown=1000:1000 /app/scripts/export_legacy.py /app/scripts/export_legacy.py
 USER 1000:1000
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "scripts/start-dokploy.cjs"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log", "--no-proxy-headers", "--limit-concurrency", "16", "--timeout-keep-alive", "5"]

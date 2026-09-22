@@ -1,0 +1,56 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Configuración · Vacaciones Sepiamary</title>
+<link rel="stylesheet" href="/static/app.css"><link rel="icon" href="/static/icon.png"></head>
+<body><main style="max-width:1100px;margin:auto;padding:28px">
+<header class="page-header"><a href="/">← Volver al calendario</a><h1>Configuración y auditoría</h1>
+<p>Sesión de {{ me.name }}. Los cambios quedan registrados. Las credenciales se configuran únicamente mediante el canal seguro de Dokploy.</p></header>
+<p id="admin-status" role="status" aria-live="polite">Cargando configuración…</p>
+<details class="card" open><summary><strong>Política general</strong></summary>
+<form id="configuration-form" data-endpoint="/api/admin/configuration" data-method="PUT">
+<div class="field"><label for="default-allowance">Días anuales por defecto</label><input id="default-allowance" name="defaultAllowance" type="number" min="0" max="366" step="0.5" required></div>
+<div class="field"><label for="over-allowance">Solicitudes sin saldo suficiente</label><select id="over-allowance" name="overAllowance"><option value="warn">Permitir con confirmación y aprobación</option><option value="block">Bloquear</option></select></div>
+<div class="field"><label for="away-percent">Umbral visual de ausencias simultáneas (%)</label><input id="away-percent" name="maxAwayPercent" type="number" min="1" max="100" required></div>
+<p>Las concesiones anuales ya fijadas se mantienen. Para modificarlas utiliza el apartado del empleado y ejercicio.</p><button class="btn btn-primary">Guardar política</button><p class="result" role="status"></p></form></details>
+<details class="card"><summary><strong>Concesiones, ajustes, arrastres y prorrateo</strong></summary>
+<form data-endpoint="/api/admin/policies/{userId}/{year}" data-method="PUT" data-path-fields="userId,year">
+<div class="field"><label>Empleado<select name="userId" data-user-select required></select></label></div>
+<div class="field"><label>Ejercicio<input name="year" type="number" min="1900" max="2200" data-current-year required></label></div>
+<div class="field"><label>Concesión anual<input name="entitlement" type="number" min="0" max="366" step="0.0001" required></label></div>
+<div class="field"><label>Ajuste autorizado (+/−)<input name="adjustment" type="number" min="-366" max="366" step="0.0001" value="0" required></label></div>
+<div class="field"><label>Arrastre autorizado<input name="carryover" type="number" min="0" max="366" step="0.0001" value="0" required></label></div>
+<div class="field"><label>Caducidad del arrastre<input name="carryoverExpiry" type="date"></label></div>
+<label><input name="prorate" type="checkbox">Prorratear la concesión por días naturales de empleo en el ejercicio</label>
+<p>El prorrateo no se activa por defecto. Debe corresponder a la política acordada por la empresa. El ajuste se aplica después del prorrateo.</p>
+<button class="btn btn-primary">Guardar concesión</button><p class="result" role="status"></p></form>
+<button id="load-policies" class="btn btn-outline">Ver concesiones del ejercicio actual</button><div id="policies-list"></div></details>
+<details class="card"><summary><strong>Jornada y calendario por empleado</strong></summary>
+<form id="work-schedule-form" data-endpoint="/api/users/{userId}" data-method="PATCH" data-path-fields="userId">
+<div class="field"><label>Empleado<select name="userId" data-user-select required></select></label></div>
+<div class="field"><label>Calendario<select name="calendarId" data-calendar-select required></select></label></div>
+<p>Horas por día. Introduce 0 para un día no laborable. El calendario compartido conserva la vista semanal; el cálculo definitivo usa esta jornada.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
+{% for day in ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'] %}<label>{{ day }}<input name="day{{ loop.index0 }}" type="number" min="0" max="24" step="0.25" value="{{ 8 if loop.index0 < 5 else 0 }}" required></label>{% endfor %}
+</div><div class="field"><label>Fecha de incorporación<input name="employedFrom" type="date"></label></div>
+<div class="field"><label>Fecha de fin de empleo<input name="employedTo" type="date"></label></div>
+<p>Las ausencias ya registradas conservan su desglose histórico. Revisa las solicitudes pendientes antes de cambiar una jornada.</p>
+<button class="btn btn-primary">Guardar jornada</button><p class="result" role="status"></p></form></details>
+<details class="card"><summary><strong>Departamentos y cobertura mínima</strong></summary>
+<form data-endpoint="/api/admin/departments" data-method="PUT">
+<div class="field"><label>Identificador estable<input name="id" pattern="[a-z][a-z0-9_-]{1,79}" required></label></div>
+<div class="field"><label>Nombre<input name="name" maxlength="120" required></label></div>
+<div class="field"><label>Color<input name="color" type="color" value="#123a5c" required></label></div>
+<div class="field"><label>Personas mínimas presentes<input name="minimumPresent" type="number" min="0" max="10000" value="0" required></label></div>
+<p>0 desactiva el bloqueo por cobertura. Se comprueba al aprobar; no equivale al umbral visual porcentual.</p>
+<button class="btn btn-primary">Guardar departamento</button><p class="result" role="status"></p></form><div id="departments-list"></div></details>
+<details class="card"><summary><strong>Calendarios y festivos</strong></summary>
+<form data-endpoint="/api/admin/calendars" data-method="PUT"><div class="field"><label>Identificador estable<input name="id" pattern="[a-z][a-z0-9_-]{1,79}" required></label></div><div class="field"><label>Nombre<input name="name" maxlength="120" required></label></div><button class="btn btn-primary">Guardar calendario</button><p class="result" role="status"></p></form>
+<form data-endpoint="/api/holidays" data-method="POST"><div class="field"><label>Calendario<select name="calendarId" data-calendar-select required></select></label></div><div class="field"><label>Fecha<input name="date" type="date" required></label></div><div class="field"><label>Festivo<input name="name" maxlength="200" required></label></div><button class="btn btn-primary">Guardar festivo</button><p class="result" role="status"></p></form>
+<p>La importación general de festivos está en el calendario principal. Los cambios no recalculan silenciosamente los saldos históricos.</p></details>
+<details class="card"><summary><strong>Sustitución temporal de responsables</strong></summary>
+<form data-endpoint="/api/admin/delegations" data-method="POST"><div class="field"><label>Responsable titular<select name="managerId" data-user-select required></select></label></div><div class="field"><label>Sustituto<select name="delegateId" data-user-select required></select></label></div><div class="field"><label>Desde<input name="dateFrom" type="date" required></label></div><div class="field"><label>Hasta<input name="dateTo" type="date" required></label></div><p>El sustituto recibe acceso a las solicitudes del departamento durante el período. Nadie puede aprobar su propia solicitud.</p><button class="btn btn-primary">Crear delegación</button><p class="result" role="status"></p></form><button id="load-delegations" class="btn btn-outline">Ver delegaciones</button><div id="delegations-list"></div></details>
+<details class="card"><summary><strong>Correo Gmail API</strong></summary><p id="mail-status"></p>
+<p>Los avisos se procesan mediante una tarea de Dokploy, con exclusión mutua y reintentos limitados. Una entrega incierta requiere revisión para evitar duplicados.</p>
+<p>El alta por correo no envía contraseñas. El administrador establece el acceso inicial por el canal interno acordado; la recuperación autónoma mediante enlace no está activada en esta entrega.</p>
+<button id="load-outbox" class="btn btn-outline">Ver bandeja de salida</button><div id="outbox-list"></div></details>
+<details class="card"><summary><strong>Historial de operaciones</strong></summary><p>Los eventos no se pueden modificar ni borrar desde la aplicación. Las copias y la recuperación se gestionan fuera de este panel.</p><button id="load-audit" class="btn btn-outline">Cargar siguientes 100 eventos</button><div id="audit-list"></div></details>
+</main><script type="module" src="/static/js/admin.js"></script></body></html>

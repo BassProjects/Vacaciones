@@ -1,0 +1,1 @@
+{"standard":"1.0.0","template":"web/1.0.0","runtime":"python3.11","port":8080,"health_path":"/health","readiness_path":"/ready"}

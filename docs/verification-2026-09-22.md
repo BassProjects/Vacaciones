@@ -1,3 +1,5 @@
+> INFORME HISTÓRICO: corresponde a la preparación Next.js del commit 0d2913d, no a la versión Python. La verificación vigente está en [verification-python.md](verification-python.md).
+
 # Evidencia de verificación — 22/09/2026
 
 Proyecto: vacaciones. Repositorio: ElectropolisDokploy/Vacaciones.

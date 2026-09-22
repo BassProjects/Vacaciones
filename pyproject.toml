@@ -1,0 +1,30 @@
+[project]
+name = "electropolis-vacaciones"
+version = "2.0.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi==0.141.1", "uvicorn==0.53.0", "jinja2==3.1.6", "httpx==0.28.1",
+  "sqlalchemy==2.0.54", "alembic==1.20.0", "psycopg[binary]==3.3.6",
+  "python-multipart==0.0.32", "email-validator==2.3.0",
+  "openpyxl==3.1.5", "xlrd==2.0.2", "pypdf==6.19.0", "pillow==12.3.0",
+  "defusedxml==0.7.1"
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.16.8", "pip-audit==2.10.1", "playwright==1.63.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["postgres: requires isolated PostgreSQL 16", "browser: supervised browser with synthetic data"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [".tools", ".venv", "node_modules", ".next"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

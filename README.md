@@ -1,61 +1,147 @@
-# Vacaciones Sepiamary
+# Vacaciones · Sepiamary
 
-Aplicación web para gestionar vacaciones y ausencias de los empleados de Sepiamary.
+Aplicación de calendario de equipo, vacaciones, ausencias y aprobaciones.
+La versión 2 migra explícitamente el backend a **Python 3.11 y FastAPI**, conservando
+PostgreSQL y la interfaz de calendario. Estándar Electropolis **1.0.0**, plantilla
+**web/1.0.0**. La decisión del responsable y sus consecuencias están en
+[ADR 0001](docs/adr/0001-python.md).
 
-## Estado de la migración
+## Estado y activación
 
-La rama `migration/dokploy-assessment` prepara la migración de Vercel a Dokploy y documenta la evaluación técnica. **No equivale a una aplicación publicada ni a una base de datos transferida.** Conserva Next.js, React y PostgreSQL; no incorpora un segundo backend ni sustituye la aplicación por otra plantilla.
+El código contiene la aplicación Python y su procedimiento de transferencia desde
+el esquema anterior. **Una página de destino publicada no significa que ya se hayan
+transferido los empleados o activado los avisos.** Sin esquema preparado y un
+administrador activo, la portada muestra «activación pendiente» y `/ready` responde
+503. `/health` sigue comprobando únicamente que el servidor está vivo.
 
-La publicación está pendiente de corregir las dependencias afectadas por avisos de seguridad, resolver los hallazgos prioritarios y ensayar la restauración de datos y el transporte de correo. No retirar Vercel ni permitir escrituras en dos bases independientes durante la transición.
+No se incluyen usuarios, contraseñas ni festivos inventados. La base de origen,
+los justificantes reales y las credenciales de Gmail deben incorporarse mediante
+el procedimiento autorizado. No retirar Vercel ni permitir escrituras simultáneas
+en dos bases independientes antes de terminar la conciliación y el corte.
+Consulta el [estado de verificación](docs/verification-python.md) y el
+[procedimiento de migración](docs/migration-dokploy.md).
 
-- [Evaluación técnica y propuesta de refactorización](docs/technical-assessment.md)
-- [Configuración, transferencia de datos y recuperación en Dokploy](docs/migration-dokploy.md)
+La recuperación autónoma mediante enlace no está activada en esta entrega: la
+herramienta de edición bloqueó el formulario correspondiente. El administrador
+puede establecer/restablecer el acceso mediante la interfaz de empleados, con cambio
+obligatorio de contraseña e invalidación de sesiones. Las invitaciones por Gmail
+no envían contraseñas ni enlaces de activación que no funcionen.
 
-## Tecnología y funciones existentes
+## Funciones
 
-Next.js 14 (App Router, JavaScript), React 18 y PostgreSQL mediante `pg`. Las rutas de `app/api` constituyen el backend. La autenticación utiliza cookies firmadas HMAC y contraseñas derivadas con scrypt.
+El calendario distingue la vista común de los detalles privados. Las notas,
+resoluciones y justificantes solo se devuelven a las personas autorizadas.
+Hay empleados, departamentos, responsables y sustituciones temporales; solicitudes,
+aprobación, rechazo, cancelación y retirada de pendientes mediante API; festivos,
+medios días y jornadas individuales; saldos por ejercicio, ajustes, arrastres con
+caducidad y prorrateo explícito; importación de festivos e histórico Calamari,
+exportación mensual y justificantes privados.
 
-La aplicación contiene gestión de empleados y roles, calendario de equipo, solicitudes y aprobaciones, medios días, festivos, importación histórica de Calamari, exportaciones mensuales y adjuntos en PostgreSQL. El correo heredado usa Gmail/Workspace mediante SMTP; los enlaces de Google Calendar permiten añadir eventos, no realizan sincronización automática.
+Los saldos y los informes se calculan en PostgreSQL, sin depender del límite de
+paginación del navegador. Los días se distribuyen por fecha real entre ejercicios.
+El servidor controla solapamientos, reintentos duplicados, cobertura mínima y la
+política de superar saldo. La desactivación de empleados conserva el historial.
+Las acciones nuevas quedan registradas en auditoría.
 
-El informe técnico distingue las funciones identificadas en el código de las verificadas mediante pruebas.
+Las reglas configurables no constituyen una interpretación de convenios o normas
+laborales. La empresa debe acordar su política: por defecto se conserva la petición
+con confirmación cuando falta saldo, no se activa el prorrateo y la cobertura mínima
+no bloquea hasta configurarla. Compartir el día y mes de cumpleaños es voluntario;
+no se publica el año de nacimiento.
 
-## Desarrollo y comprobaciones
+## Tecnología y estructura
 
-Entorno comprobado: Node.js 22.23.2 y npm, con las versiones exactas de `package-lock.json`.
+| Componente | Implementación |
+|---|---|
+| Servicio HTTP | FastAPI, Pydantic, Uvicorn; `0.0.0.0:8080` |
+| Datos | PostgreSQL 16, SQLAlchemy y migraciones Alembic |
+| Interfaz | Jinja2, HTML/CSS local y módulos JavaScript nativos |
+| Correo | Gmail API HTTPS, bandeja de salida transaccional |
+| Calidad | uv, lockfile, Ruff, pytest, Chromium/Playwright en pruebas |
+| Publicación | Docker por digest, usuario 1000, raíz de solo lectura y `/tmp` |
 
-```bash
-npm ci --ignore-scripts --no-audit --no-fund
-npm test
-NEXT_TELEMETRY_DISABLED=1 npm run build
-node scripts/smoke-standalone.cjs
+`app/routes/` define la API; `calendar_rules.py`, `balances.py`, `reporting.py` y
+`leave_service.py` contienen las reglas de negocio; `models.py` y `migrations/`
+definen el esquema. `mailer.py` y `cli.py` implementan el correo y la operación.
+`file_worker.py` analiza documentos en procesos supervisados con límites.
+`app/templates/` y `app/static/js/` contienen la interfaz. No hay runtime Node,
+Next.js, SMTP, GitHub Actions ni procesos residentes adicionales.
+
+OpenAPI está disponible para administradores autenticados en `/api/openapi.json`.
+El panel `/admin` permite configurar políticas, jornadas, calendarios,
+departamentos, delegaciones, bandeja de salida y consultar auditoría.
+
+## Desarrollo reproducible
+
+Utiliza Python 3.11. Instala uv **0.12.17** en un entorno privado cuando no esté
+proporcionado por el workspace:
+
+```sh
+python3 -m venv .tools
+.tools/bin/pip install uv==0.12.17
+export PATH="$PWD/.tools/bin:$PATH"
+uv sync --locked
+sh scripts/check.sh
 ```
 
-La prueba HTTP usa un proceso temporal con configuración sintética, sin acceder a PostgreSQL ni a credenciales de producción, y lo detiene al terminar. No ejecuta JavaScript en navegador ni sustituye las pruebas de negocio.
+El check ejecuta el manifiesto, Ruff y pytest. Las pruebas de persistencia no usan
+SQLite ni una base de producción: sin el supervisor se omiten expresamente. Para
+comprobar persistencia, migración, restauración y navegador:
 
-```bash
-npm run check:release
+```sh
+uv run python scripts/with_test_postgres.py sh scripts/check.sh
 ```
 
-Este último comando incluye auditoría de dependencias. En la evaluación inicial hay avisos altos/críticos, por lo que **la comprobación de publicación no está superada**. No ejecutar `npm audit fix --force` sin evaluar y probar los cambios de versión mayor.
+El supervisor crea un PostgreSQL **16** aislado en loopback, con datos sintéticos,
+ejecuta el comando en primer plano, detiene el proceso y elimina su directorio
+al terminar. Rechaza una base no creada por él. No deja un servicio en background.
+Las pruebas de navegador también crean y cierran su propio proceso web temporal.
 
-Para desarrollo funcional, configurar una base PostgreSQL de pruebas aislada y las variables de entorno indicadas en la guía de migración. `SESSION_SECRET` debe ser aleatorio y tener al menos 32 caracteres: ya no existe una clave predeterminada válida. No utilizar datos ni credenciales de producción para pruebas.
+Si el contenedor de desarrollo no incluye PostgreSQL 16, el procedimiento
+`scripts/build-test-postgres.sh` descarga la versión fijada 16.15 del servidor
+oficial, comprueba SHA256 y la instala bajo `.tools/pg16`. Requiere los paquetes
+del contenedor `build-essential libreadline-dev zlib1g-dev libssl-dev bison flex
+pkg-config`. Instálalos mediante `install_system_packages`, no en el host.
+Para navegador se utiliza el paquete `chromium` del contenedor; no forma parte de
+la imagen de producción. El modo sin sandbox del navegador se reserva a estas
+pruebas aisladas de datos ficticios y tráfico limitado a loopback.
 
-El código heredado puede inicializar una base de desarrollo cuando `SCHEMA_MANAGEMENT` no es `external`; si falta administrador exige `BOOTSTRAP_ADMIN_PASSWORD` de al menos 16 caracteres. Ese mecanismo conserva compatibilidad con el desarrollo previo, pero **no es el procedimiento de migración a Dokploy**. En Dokploy el entrypoint exige `SCHEMA_MANAGEMENT=external` y un esquema previamente restaurado y comprobado; no crea tablas, empleados ni festivos desde las peticiones.
-
-```bash
-npm run dev
+```sh
+uv run pip-audit --progress-spinner off
 ```
 
-## Despliegue preparado para Dokploy
+La auditoría comprueba avisos conocidos de dependencias; no sustituye una revisión
+de seguridad ni demuestra ausencia de vulnerabilidades en el código propio.
 
-El Dockerfile usa salida standalone, un único servidor HTTP en `0.0.0.0:8080`, usuario 1000 y caché temporal en `/tmp`. `/health` comprueba que el servidor responde; `/ready` comprueba configuración y base de datos con respuesta genérica ante errores. Son comprobaciones distintas.
+## Configuración y publicación
 
-Las conexiones PostgreSQL verifican certificados por defecto. `DATABASE_SSL_MODE=disable` se reserva a la conexión interna autorizada de la plataforma, no a proveedores externos. No dejar una variable `POSTGRES_URL` del origen junto con `DATABASE_URL` del destino: el alias heredado tiene prioridad.
+La configuración se lee del entorno y se documenta en
+[configuración](docs/configuration.md). PostgreSQL interno utiliza
+`DATABASE_URL` generado por la plataforma y `DATABASE_SSL_MODE=disable` únicamente
+en esa red autorizada. Conexiones externas verifican certificados por defecto.
+`APP_URL` debe ser el origen HTTPS real de esta instalación y `TZ=Europe/Madrid`.
+No se usan los alias `POSTGRES_URL`, `VERCEL_URL` ni `SESSION_SECRET` heredados.
 
-Los adjuntos están en `request_attachments.data`, por lo que la copia de PostgreSQL debe incluirlos. No se requiere `/data` para el diseño actual. Las credenciales se introducen mediante enlaces seguros de la plataforma, nunca en el chat, Git o la imagen.
+No introduzcas secretos en el chat, Git, pruebas o imágenes. Utiliza el enlace
+seguro de la plataforma cuando la persona esté preparada; no lo generes con
+antelación. `MAIL_ENABLED=false` hasta terminar la configuración y las pruebas
+reales de [Gmail API](docs/gmail-api.md).
 
-## Correo y configuración de origen
+La secuencia es: checks → commit/push → construcción Docker → despliegue del SHA
+subido → operación explícita de migración → comprobaciones HTTPS y funcionales.
+La aplicación no ejecuta Alembic ni crea administradores desde una petición o un
+arranque web. El Dockerfile ejecuta los checks durante su construcción; esto no
+es una validación universal independiente del repositorio impuesta por Dokploy.
 
-El transporte existente utiliza `smtp.gmail.com:465` con `GMAIL_USER`, `GMAIL_APP_PASSWORD` y, opcionalmente, `MAIL_FROM`. Las herramientas actuales de esta plataforma no autorizan SMTP arbitrario: añadir un dominio a la salida HTTPS no habilita el puerto 465. Antes de conservar los avisos e invitaciones en Dokploy debe acordarse y probarse un transporte HTTPS, por ejemplo Gmail API.
+## Operación y recuperación
 
-`APP_URL` debe apuntar a la dirección HTTPS real del destino. El código heredado también reconoce `VERCEL_URL`; sin configurar la URL del destino, algunos correos seguirían enlazando a Vercel. Esta rama no cambia las variables, el dominio, los datos ni la configuración del proyecto Vercel.
+Consulta [operación y tareas](docs/operations.md),
+[seguridad y límites](docs/security.md) y
+[transferencia, recuperación y retirada de Vercel](docs/migration-dokploy.md).
+Los adjuntos se guardan en PostgreSQL; no se necesita `/data` para esta versión.
+El rollback de imagen no revierte el esquema, los datos, los secretos ni las tareas.
+Una copia local del servidor no protege frente a la pérdida completa de ese host.
+No se afirma alta disponibilidad ni despliegue sin interrupción.
+
+Las guías comunes están en `docs/electropolis/`. `AGENTS.md` indica cómo mantener
+esta aplicación y conservar la separación entre cambios locales, GitHub y producción.
