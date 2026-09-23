@@ -27,11 +27,14 @@ El CLI solo permite el alta en una instalación sin usuarios y nunca elimina cue
 Sin administrador activo, la portada muestra «activación pendiente» y `/ready`
 responde 503; `/health` comprueba únicamente que el servidor responde.
 
-El correo se ha cambiado a **SMTP con contraseña**, sin Gmail API ni OAuth. Su
-activación sigue pendiente del buzón, su contraseña SMTP y una capacidad de salida
-TCP autorizada por la plataforma: el conector actual no permite habilitar 465/587.
-`MAIL_ENABLED=false` y la tarea de correo permanece pausada. Ver [SMTP](docs/smtp.md)
-y el [informe de estas comprobaciones](docs/verification-smtp.md).
+El correo utiliza **SMTP con contraseña**, sin Gmail API ni OAuth, con remitente
+`noreply@electropolis.es`. La plataforma ya permite `smtp.gmail.com:587` mediante
+su proxy CONNECT autorizado y la variable inyectada `SMTP_PROXY_URL`. El cliente
+verifica TLS contra el servidor original y no permite acceso directo en producción.
+La puesta en marcha comprueba primero conexión/cifrado sin autenticar, después un
+único mensaje autorizado y finalmente activa `MAIL_ENABLED` y `gmail-outbox` cada
+cinco minutos. Ver [SMTP y operación](docs/smtp.md) y el
+[informe del cliente proxy](docs/verification-smtp-proxy.md).
 
 La recuperación autónoma mediante enlace no está activada en esta entrega: la
 herramienta de edición bloqueó el formulario correspondiente. El administrador

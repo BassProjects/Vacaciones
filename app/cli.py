@@ -16,6 +16,7 @@ from sqlalchemy import delete, func, select, text
 from app.config import Settings
 from app.db import Database, audit, lock_configuration
 from app.legacy import import_archive
+from app.mail_operations import check_smtp, send_test_mail
 from app.mailer import drain
 from app.models import AuthThrottle, Employee, ImportBatch, PasswordReset, SessionToken, new_id, now
 from app.security import hash_password
@@ -136,8 +137,19 @@ def import_from_url(database):
 def main():
     parser = argparse.ArgumentParser(description="Controlled Electropolis Vacaciones operations")
     subcommands = parser.add_subparsers(dest="operation", required=True)
-    for name in ("migrate", "bootstrap-admin", "maintenance", "import-legacy-url", "status"):
+    for name in (
+        "migrate",
+        "bootstrap-admin",
+        "maintenance",
+        "import-legacy-url",
+        "status",
+        "smtp-check",
+    ):
         subcommands.add_parser(name)
+    test_mail = subcommands.add_parser("mail-test")
+    test_mail.add_argument("--recipient", required=True)
+    test_mail.add_argument("--message-key", required=True)
+    test_mail.add_argument("--send", action="store_true", required=True)
     mail = subcommands.add_parser("mail-drain")
     mail.add_argument("--limit", type=int, default=10)
     mail.add_argument("--seconds", type=int, default=45)
@@ -148,6 +160,9 @@ def main():
     database = None
     try:
         settings = Settings()
+        if arguments.operation == "smtp-check":
+            print(json.dumps(check_smtp(settings), ensure_ascii=False))
+            return 0
         database = Database(settings)
         if database.sessions is None:
             raise ValueError("Database configuration is required")
@@ -155,6 +170,10 @@ def main():
             result = migrate(database)
         elif arguments.operation == "bootstrap-admin":
             result = bootstrap_admin(database)
+        elif arguments.operation == "mail-test":
+            result = send_test_mail(database, settings, arguments.recipient, arguments.message_key)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0 if result["accepted"] else 1
         elif arguments.operation == "mail-drain":
             if not 1 <= arguments.limit <= 25 or not 1 <= arguments.seconds <= 120:
                 raise ValueError("Mail batch limits are outside the permitted range")

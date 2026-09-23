@@ -29,8 +29,9 @@ def install_fake(monkeypatch):
     connection = Mock()
     connection.send_message.return_value = {}
     factory = Mock(return_value=connection)
-    monkeypatch.setattr("app.smtp_transport.smtplib.SMTP_SSL", factory)
-    monkeypatch.setattr("app.smtp_transport.smtplib.SMTP", factory)
+    monkeypatch.delenv("SMTP_PROXY_URL", raising=False)
+    monkeypatch.setattr("app.smtp_client.smtplib.SMTP_SSL", factory)
+    monkeypatch.setattr("app.smtp_client.smtplib.SMTP", factory)
     return connection, factory
 
 

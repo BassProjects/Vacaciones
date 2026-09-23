@@ -32,10 +32,15 @@ Desactivar un empleado conserva solicitudes y justificantes; se retiró el borra
 
 ## Operación de integraciones
 
-Gmail funciona por OAuth y HTTPS respetando el proxy. Los correos no incluyen contraseñas
-ni justificantes. Los mensajes dudosos no se reintentan automáticamente para evitar
-duplicados. No se almacenan credenciales en Git ni frontend. La respuesta de salud no
-certifica la entrega del correo. Revisar permisos, revocación y ciclo de vida OAuth.
+Gmail se utiliza por SMTP con contraseña de aplicación y TLS verificado dentro del
+proxy CONNECT autorizado (`smtp_egress`, `SMTP_PROXY_URL`); no se utiliza OAuth ni
+Gmail API. Producción exige ese proxy y no intenta salida directa si falla. Los correos
+no incluyen contraseñas ni justificantes. Los mensajes dudosos no se reintentan
+automáticamente para evitar duplicados. La prueba operativa tiene clave persistente
+y comparte el bloqueo del procesador de outbox; repetirla no reenvía un mensaje.
+No se almacenan credenciales en Git, frontend o logs. La respuesta de salud y la
+negociación TLS no certifican autenticación o entrega: se verifican por separado.
+Revisar permisos y revocación de contraseñas SMTP mediante el canal seguro.
 
 No hay un acceso autónomo por enlace de recuperación en esta entrega: su formulario
 no pudo incorporarse mediante la herramienta disponible. No se publicitan ni envían

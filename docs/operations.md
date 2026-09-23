@@ -52,11 +52,14 @@ Conservar el nombre estable `gmail-outbox` (ahora transporte SMTP), zona `Europe
 /app/.venv/bin/python -m app.cli mail-drain --limit 10 --seconds 45
 ```
 
-Mantenerla pausada: SMTP necesita habilitación TCP 465/587 por la plataforma, no
-expuesta por el conector actual. Antes de activar hacen falta credenciales aplicadas y una prueba
-de envío real autorizada. El código limita el lote y las llamadas, pero no se presupone
-un timeout global de ejecución de Dokploy. El bloqueo asesor evita procesadores de
-correo simultáneos. Una entrega incierta requiere revisión; no se repite automáticamente.
+Activarla solo después de publicar el cliente CONNECT, confirmar `smtp_egress` y
+`SMTP_PROXY_URL`, ejecutar `smtp-check` sin autenticación/envío y una prueba explícita
+`mail-test --recipient DESTINATARIO --message-key CLAVE_UNICA --send`. Consultar `smtp.md`.
+Aplicar después `MAIL_ENABLED=true` mediante publicación. Las tareas `smtp-connectivity`
+y `smtp-test-mail` se usan manualmente y permanecen pausadas. No duplicar `gmail-outbox`.
+El código limita el lote y las llamadas, pero no se presupone un timeout global de
+Dokploy. El bloqueo asesor evita procesadores de correo simultáneos y excluye pruebas
+simultáneas. Una entrega incierta requiere revisión; no se repite automáticamente.
 
 La limpieza de sesiones y previsualizaciones caducadas se puede ejecutar explícitamente:
 

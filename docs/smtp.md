@@ -7,12 +7,64 @@ el estándar Electropolis 1.0.0, Python 3.11, PostgreSQL 16 ni sus controles de 
 
 ## Estado y límites de la plataforma
 
-El transporte SMTP está implementado con la biblioteca estándar de Python y TLS
-verificado. El conector actual solo permite configurar salida HTTPS y servicios HTTP
-internos: **no ofrece una operación que autorice SMTP TCP 465/587**. Añadir el dominio
-a `egress_hosts` no habilita esos puertos. No crear túneles, omitir el proxy ni modificar
-las restricciones para eludir este límite. Hace falta una capacidad SMTP autorizada
-por la plataforma antes de activar el envío. El correo y su tarea permanecen pausados.
+Desde el 23-09-2026 la plataforma ofrece SMTP acotado mediante `smtp_egress`.
+Vacaciones tiene autorizado exclusivamente `smtp.gmail.com:587`; no confundirlo con
+`egress_hosts`, que solo permite HTTPS/443. La publicación inyecta `SMTP_PROXY_URL`
+(`http://egress:3128`, sin credenciales). No configurarla manualmente ni cambiar
+`SMTP_HOST` a `egress`: el servidor TLS original sigue siendo `smtp.gmail.com`.
+
+`app/smtp_client.py` adapta el ejemplo entregado por `agent_guide(topic="smtp")`.
+Abre HTTP CONNECT al par autorizado, conserva el saludo SMTP al leer el encabezado,
+negocia STARTTLS una sola vez y verifica certificado y nombre con TLS 1.2 como mínimo.
+También soporta TLS implícito/465 si la plataforma autoriza ese par en otro entorno.
+No instala dependencias ni modifica sockets globales. Un proxy inválido o rechazado
+no produce fallback directo; Vacaciones exige proxy incluso si falta la variable en
+producción. Las contraseñas viajan dentro de TLS, nunca en el encabezado CONNECT.
+El proxy limita conexiones, duración y volumen según la guía de la plataforma.
+
+## Puesta en marcha autorizada
+
+Publicar primero el cliente con `MAIL_ENABLED=false` y la tarea `gmail-outbox` pausada.
+Ejecutar desde una tarea nativa pausada `smtp-connectivity`:
+
+```sh
+/app/.venv/bin/python -m app.cli smtp-check
+```
+
+Solo realiza CONNECT, saludo, EHLO, TLS, EHLO y QUIT. No abre la base de datos,
+no autentica y no envía mensajes; devuelve `smtp_tls_ready` o salida de error.
+
+Después, con petición expresa del destinatario y del envío, ejecutar una vez la tarea
+pausada `smtp-test-mail` con el comando publicado, por ejemplo:
+
+```sh
+/app/.venv/bin/python -m app.cli mail-test --recipient DESTINATARIO --message-key CLAVE_UNICA --send
+```
+
+El comando exige `--send`, valida el correo y una clave de 8 a 80 caracteres alfanuméricos,
+guiones o guiones bajos. Registra antes del envío el evento `smtp-test:CLAVE_UNICA` y usa
+el mismo bloqueo asesor PostgreSQL que `mail-drain`. Solo envía ese mensaje; no procesa
+notificaciones pendientes. Permite esta prueba explícita con el envío automático pausado.
+Repetir la misma clave nunca vuelve a enviar: devuelve el estado persistente. Los errores
+no pasan a la cola automática de reintentos; una entrega dudosa o interrumpida requiere
+revisión. No cambiar de clave para repetir a ciegas un envío incierto.
+
+Una aceptación devuelve `accepted=true`, el ID de outbox y Message-ID, sin contraseña
+ni respuestas privadas del servidor. Una prueba fallida devuelve código de proceso 1.
+La aceptación SMTP no confirma la recepción en la bandeja de entrada.
+
+Solo después de esa aceptación, aplicar `MAIL_ENABLED=true` mediante publicación y
+activar la tarea existente `gmail-outbox`, con `*/5 * * * *`, zona `Europe/Madrid` y:
+
+```sh
+/app/.venv/bin/python -m app.cli mail-drain --limit 10 --seconds 45
+```
+
+Las tareas de diagnóstico y prueba se conservan pausadas (horario inactivo `0 3 * * *`).
+El usuario solicitó esta activación y una prueba a `juanangel@electropolis.es` el 23-09-2026.
+Consulta el resultado real y revisión en `verification-smtp-proxy.md`. No activar SMTP
+solo porque `/ready` responda 200. Ante fallos de CONNECT, revisar logs `internet`;
+ante rechazo de autenticación, revisar las credenciales de Google por el canal seguro.
 
 Se han retirado del código activo las llamadas a Gmail API y las variables OAuth.
 Se retiran de la configuración autorizada los destinos `gmail.googleapis.com` y

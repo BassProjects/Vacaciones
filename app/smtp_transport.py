@@ -1,11 +1,14 @@
-"""Authenticated SMTP over verified TLS. Requires separately authorized TCP egress."""
+"""Authenticated SMTP through the authorized proxy with verified end-to-end TLS."""
 
+import os
 import smtplib
 import ssl
 from email.message import EmailMessage
 from email.utils import formatdate, parseaddr
 
 from pydantic import EmailStr, TypeAdapter
+
+from app.smtp_client import connect_smtp
 
 
 class DeliveryError(Exception):
@@ -14,6 +17,19 @@ class DeliveryError(Exception):
     def __init__(self, state, code, retry_after=60):
         self.state, self.code, self.retry_after = state, code, retry_after
         super().__init__(code)
+
+
+def open_smtp(settings):
+    """Connect with verified TLS; production must use the platform's proxy."""
+    if settings.environment == "production" and not os.environ.get("SMTP_PROXY_URL"):
+        raise ValueError("SMTP proxy required in production")
+    return connect_smtp(
+        settings.smtp_host,
+        settings.smtp_port,
+        settings.smtp_security,
+        timeout=10,
+        local_hostname="vacaciones",
+    )
 
 
 class SMTPTransport:
@@ -45,22 +61,8 @@ class SMTPTransport:
         connection = None
         transmitting = False
         try:
-            context = ssl.create_default_context()
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-            common = {
-                "host": self.settings.smtp_host,
-                "port": self.settings.smtp_port,
-                "local_hostname": "vacaciones",
-                "timeout": 10,
-            }
-            if self.settings.smtp_security == "ssl":
-                connection = smtplib.SMTP_SSL(**common, context=context)
-            else:
-                connection = smtplib.SMTP(**common)
-                connection.ehlo_or_helo_if_needed()
-                # No plaintext authentication or fallback if STARTTLS is not supported.
-                connection.starttls(context=context)
-                connection.ehlo_or_helo_if_needed()
+            # connect_smtp already negotiates TLS; never issue STARTTLS a second time.
+            connection = open_smtp(self.settings)
             connection.login(self.settings.smtp_user, self.settings.smtp_password)
             transmitting = True
             refused = connection.send_message(message, from_addr=sender, to_addrs=[recipient])
@@ -91,6 +93,8 @@ class SMTPTransport:
             ) from None
         except smtplib.SMTPNotSupportedError:
             raise DeliveryError("failed", "SMTP_CAPABILITY_REJECTED") from None
+        except ValueError:
+            raise DeliveryError("failed", "SMTP_CONFIGURATION_INVALID") from None
         except (OSError, smtplib.SMTPException):
             # A lost response after DATA might mean the server already accepted the mail.
             raise DeliveryError(

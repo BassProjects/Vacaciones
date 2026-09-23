@@ -26,9 +26,13 @@ Las sesiones nuevas son tokens opacos revocables; las sesiones antiguas no se tr
 
 Configurar `database=true`, `persistent_data=false`. Los justificantes forman parte de
 PostgreSQL, no de un volumen `/data`. Solo se requiere un servicio HTTP en 8080.
-SMTP requiere una capacidad TCP autorizada de la plataforma. El conector actual
-no habilita 465/587; no confundir egress HTTPS con SMTP. El envío se mantiene apagado.
-No exponer la base de datos ni eludir el proxy. Consultar `smtp.md`.
+SMTP usa `smtp_egress=[{"host":"smtp.gmail.com","port":587}]` y la variable
+reservada `SMTP_PROXY_URL`, inyectada al publicar; no se configura como secreto ni
+manualmente. El cliente abre CONNECT mediante ese proxy y verifica TLS contra el
+SMTP original. La aplicación exige proxy en producción y no tiene fallback directo.
+Mantener `MAIL_ENABLED=false` hasta verificar conexión y un envío real autorizado;
+publicar después `true` y activar la tarea existente según `smtp.md`. No exponer
+la base de datos ni ampliar otros destinos de salida.
 
 ## Alta inicial y transferencia
 

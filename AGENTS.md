@@ -43,7 +43,9 @@ No pedir secretos en el chat ni incluirlos en código, logs, pruebas o Docker. U
 No generar enlaces con caducidad por adelantado. Los valores de entorno se consultan por nombre,
 no se imprimen. El responsable ha elegido SMTP y comienzo desde cero; consulta `docs/smtp.md`.
 `MAIL_ENABLED=false` hasta tener SMTP autorizado por la plataforma, credenciales y prueba real.
-El conector actual no habilita SMTP TCP: no usar túneles ni eludir el proxy o las restricciones.
+La plataforma admite SMTP acotado mediante `smtp_egress` y `SMTP_PROXY_URL` inyectado.
+Consulta `agent_guide(topic="smtp")`: usa exclusivamente CONNECT autorizado, TLS verificado
+contra el servidor SMTP original y ningún fallback directo en producción. No eludas el proxy.
 No se necesita importar el origen para crear la primera cuenta; no se borra Vercel.
 
 Las tareas nativas de Dokploy están disponibles en la plataforma actual, como ampliación operativa
