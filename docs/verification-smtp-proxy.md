@@ -71,3 +71,32 @@ su aceptación se publica `MAIL_ENABLED=true` y se activa `gmail-outbox` cada ci
 minutos, Europe/Madrid. Las tareas de diagnóstico/prueba quedan pausadas.
 Los resultados de producción se incorporan a continuación cuando estén comprobados.
 La aceptación SMTP nunca se describe como entrega confirmada en la bandeja de entrada.
+
+## Primera publicación y conexión real
+
+Commit `40fd6cd68174bbd8f7a1828d6f7a55454c3266a9`, despliegue
+`e80ff779bb25f2689d994ed67a7a3686`, healthy y ready. Construcción:
+106 pruebas correctas y 46 omitidas por requerir PostgreSQL/Chromium, ya cubiertas
+por la batería aislada anterior. Configuración 8 aplicada, envío automático pausado.
+La tarea `smtp-connectivity` (`3trOnYUs1PsyJM0hzri88`), ejecución
+`lxZ1_eCPDBMpLRKT1Dn3_`, terminó `done` con `smtp_tls_ready` y `proxy_used=true`.
+Esto verifica conexión/TLS, no autenticación ni envío.
+
+El conector devolvió `tool_error` al guardar el comando de prueba con parámetros.
+El historial confirmó que no existía esa tarea ni había ejecuciones de envío.
+La tarea pudo guardarse pausada con el comando de consulta `app.cli status`;
+no se ejecutó ese comando provisional. No se modificaron permisos o controles.
+Se añadió soporte explícito de parámetros no secretos en `SMTP_TEST_RECIPIENT` y
+`SMTP_TEST_MESSAGE_ID`, conservando el requisito `--send`, la validación de destino,
+el registro persistente y el control de duplicados. El comando operativo pasa a ser
+`/app/.venv/bin/python -m app.cli mail-test --send` después de publicar el ajuste.
+
+La batería completa se repitió tras este cambio de CLI: trabajo
+`356a1f1b7a14ac262ecc9175fd3f149f`, completed, código 0, **153 pruebas superadas,
+0 fallidas y 0 omitidas**, 49 avisos existentes. PostgreSQL y navegador aislados.
+Se sustituyen solo estas huellas respecto a la batería anterior:
+
+```text
+9fa5cdaa9737330c4fdac3518c1d1bff2f9a8b1e9f7648cfd20509046d113ad2 app/cli.py
+ecab6179e0291e80673e6f9b02b2d82b81d368853410f25376711c574d091054 tests/test_mail_operations.py
+```

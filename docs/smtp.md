@@ -41,6 +41,14 @@ pausada `smtp-test-mail` con el comando publicado, por ejemplo:
 /app/.venv/bin/python -m app.cli mail-test --recipient DESTINATARIO --message-key CLAVE_UNICA --send
 ```
 
+Para tareas de la plataforma también se admiten `SMTP_TEST_RECIPIENT` y
+`SMTP_TEST_MESSAGE_ID` como variables no secretas de configuración, aplicadas al
+publicar. Así el comando guardado no contiene destinatarios ni identificadores:
+
+```sh
+/app/.venv/bin/python -m app.cli mail-test --send
+```
+
 El comando exige `--send`, valida el correo y una clave de 8 a 80 caracteres alfanuméricos,
 guiones o guiones bajos. Registra antes del envío el evento `smtp-test:CLAVE_UNICA` y usa
 el mismo bloqueo asesor PostgreSQL que `mail-drain`. Solo envía ese mensaje; no procesa

@@ -160,3 +160,17 @@ def test_rejected_test_has_nonzero_exit_code(monkeypatch, capsys):
     assert cli.main() == 1
     assert "SMTP_AUTH_REJECTED" in capsys.readouterr().out
     database.close.assert_called_once()
+
+
+def test_mail_test_accepts_environment_parameters_without_putting_them_in_command(monkeypatch):
+    monkeypatch.setenv("SMTP_TEST_RECIPIENT", "qa@example.com")
+    monkeypatch.setenv("SMTP_TEST_MESSAGE_ID", "synthetic-env-01")
+    monkeypatch.setattr("sys.argv", ["cli", "mail-test", "--send"])
+    monkeypatch.setattr(cli, "Settings", settings)
+    database = Mock()
+    monkeypatch.setattr(cli, "Database", Mock(return_value=database))
+    operation = Mock(return_value={"accepted": True, "status": "sent"})
+    monkeypatch.setattr(cli, "send_test_mail", operation)
+    assert cli.main() == 0
+    assert operation.call_args.args[2:] == ("qa@example.com", "synthetic-env-01")
+    database.close.assert_called_once()

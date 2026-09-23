@@ -147,8 +147,16 @@ def main():
     ):
         subcommands.add_parser(name)
     test_mail = subcommands.add_parser("mail-test")
-    test_mail.add_argument("--recipient", required=True)
-    test_mail.add_argument("--message-key", required=True)
+    test_mail.add_argument(
+        "--recipient",
+        default=os.environ.get("SMTP_TEST_RECIPIENT"),
+        required=not bool(os.environ.get("SMTP_TEST_RECIPIENT")),
+    )
+    test_mail.add_argument(
+        "--message-key",
+        default=os.environ.get("SMTP_TEST_MESSAGE_ID"),
+        required=not bool(os.environ.get("SMTP_TEST_MESSAGE_ID")),
+    )
     test_mail.add_argument("--send", action="store_true", required=True)
     mail = subcommands.add_parser("mail-drain")
     mail.add_argument("--limit", type=int, default=10)
