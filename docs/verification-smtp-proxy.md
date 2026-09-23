@@ -100,3 +100,28 @@ Se sustituyen solo estas huellas respecto a la batería anterior:
 9fa5cdaa9737330c4fdac3518c1d1bff2f9a8b1e9f7648cfd20509046d113ad2 app/cli.py
 ecab6179e0291e80673e6f9b02b2d82b81d368853410f25376711c574d091054 tests/test_mail_operations.py
 ```
+
+## Autenticación y envío real comprobados
+
+El ajuste se publicó en el commit `173ceedb222f74f7b127f465edb179028e2aacbf`,
+despliegue `f4bcfc57a528c9fd63c4cfe2c7c5ad55`: healthy/ready; 107 pruebas de build
+correctas y 46 omitidas por necesitar el entorno aislado, cubiertas por las 153 anteriores.
+Configuración revisión 9 aplicada, todavía con `MAIL_ENABLED=false`.
+
+La tarea pausada `smtp-test-mail`, ID `UI_9yDzlAVdwrieTFTl8J`, pudo guardarse con
+`/app/.venv/bin/python -m app.cli mail-test --send`. Se ejecutó expresamente una vez,
+run `qyE5PV-WTaUht7eSO6Dd2`, finalizado el 23-09-2026 a las 12:20:06.775 UTC.
+El log confirmó `status=sent`, `accepted=true` y `error_code=null`.
+Registro de outbox: `00a8fd05-4b86-48ee-9051-df1d3f323d09`.
+Remitente configurado `noreply@electropolis.es`, destinatario autorizado
+`juanangel@electropolis.es`, asunto `Vacaciones · Prueba de correo SMTP`.
+Google aceptó el mensaje después de autenticar por el canal TLS del proxy; no se
+consultó el buzón del destinatario ni se afirma entrega confirmada en bandeja de entrada.
+No se reenvió la prueba y las tareas de diagnóstico/prueba siguen pausadas.
+
+Tras esta aceptación se preparó la revisión 10 con `MAIL_ENABLED=true`. Su aplicación
+requiere publicar esta revisión documental (sin modificar el contenido ejecutable
+que pasó las 153 pruebas). Después corresponde activar la tarea existente
+`gmail-outbox` (`eOL61Q7bm2RRcTMC3Gj8M`), `*/5 * * * *`, `Europe/Madrid`, y comprobar
+una ejecución de `mail-drain --limit 10 --seconds 45`. La configuración y el estado
+actual de las tareas se consultan en la plataforma: no retroceden con rollback.
