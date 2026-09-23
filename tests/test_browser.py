@@ -144,3 +144,103 @@ def test_calendar_login_submission_and_administration_in_browser(browser_server,
         finally:
             context.close()
             browser.close()
+
+
+@pytest.mark.parametrize(
+    "viewport", [{"width": 1365, "height": 900}, {"width": 390, "height": 844}]
+)
+def test_eight_character_password_forms_in_browser(browser_server, viewport):
+    binary = shutil.which("chromium")
+    if not binary:
+        pytest.skip("Install the isolated development chromium package for browser checks")
+    errors, external = [], []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            executable_path=binary,
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking"],
+        )
+        context = browser.new_context(viewport=viewport, timezone_id="Europe/Madrid")
+        context.set_default_timeout(10000)
+
+        def allow_test_origin(route):
+            if urlparse(route.request.url).netloc == urlparse(browser_server).netloc:
+                route.continue_()
+            else:
+                external.append(route.request.url)
+                route.abort()
+
+        context.route("**/*", allow_test_origin)
+        page = context.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+
+        def check_password_field(field):
+            assert field.get_attribute("minlength") == "8"
+            field.fill("x" * 7)
+            assert not field.evaluate("element => element.checkValidity()")
+            field.fill("x" * 8)
+            assert field.evaluate("element => element.checkValidity()")
+
+        def open_sidebar_if_needed(selector):
+            page.locator(".app-shell").wait_for()
+            if not page.locator(selector + ":visible").count():
+                page.locator('[data-action="toggle-mobile-menu"]:visible').first.click()
+
+        try:
+            login(page, browser_server, "admin")
+            navigation = '[data-action="nav"][data-route="administracion"]'
+            open_sidebar_if_needed(navigation)
+            page.locator(navigation + ":visible").first.click()
+            page.locator('[data-action="open-add-worker-modal"]').click()
+            form = page.locator('form[data-action="add-worker-form"]')
+            form.locator('[name="name"]').fill("Synthetic browser password policy")
+            form.locator('[name="email"]').fill("browser-policy@example.com")
+            form.locator('[name="username"]').fill("browser-policy")
+            check_password_field(form.locator('[name="password"]'))
+            with page.expect_response(
+                lambda r: r.url.endswith("/api/users") and r.request.method == "POST"
+            ) as response:
+                form.locator('button[type="submit"]').click()
+            assert response.value.status == 200, response.value.text()
+            form.wait_for(state="hidden")
+
+            page.locator('[data-action="open-reset-password-modal"][data-id="test-worker"]').click()
+            form = page.locator('form[data-action="reset-password-form"]')
+            check_password_field(form.locator('[name="newPassword"]'))
+            with page.expect_response(
+                lambda r: (
+                    r.url.endswith("/api/users/test-worker/reset-password")
+                    and r.request.method == "POST"
+                )
+            ) as response:
+                form.locator('button[type="submit"]').click()
+            assert response.value.status == 200, response.value.text()
+            form.wait_for(state="hidden")
+
+            menu = '[data-action="toggle-user-menu"]'
+            open_sidebar_if_needed(menu)
+            page.locator(menu + ":visible").first.click()
+            page.locator('[data-action="open-change-password"]:visible').first.click()
+            form = page.locator('form[data-action="change-password-form"]')
+            form.locator('[name="currentPassword"]').fill(TEST_PASSWORD)
+            check_password_field(form.locator('[name="newPassword"]'))
+            with page.expect_response(
+                lambda r: r.url.endswith("/api/auth/change-password") and r.request.method == "POST"
+            ) as response:
+                form.locator('button[type="submit"]').click()
+            assert response.value.status == 200, response.value.text()
+            form = page.locator('form[data-action="login-form"]')
+            form.wait_for()
+            form.locator('[name="username"]').fill("admin")
+            form.locator('[name="password"]').fill("x" * 8)
+            with page.expect_response(
+                lambda r: r.url.endswith("/api/auth/login") and r.request.method == "POST"
+            ) as response:
+                form.locator('button[type="submit"]').click()
+            assert response.value.status == 200, response.value.text()
+            form.wait_for(state="hidden")
+            assert errors == [], errors
+            assert external == [], external
+        finally:
+            context.close()
+            browser.close()

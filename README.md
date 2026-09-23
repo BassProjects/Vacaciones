@@ -16,7 +16,13 @@ contraseña inicial válida introducida por el canal seguro; no hay acceso prede
 El email no es obligatorio para esa primera cuenta. Se exige cambiar la contraseña
 al entrar antes de acceder al resto de funciones.
 
-La política existente exige 16 a 256 caracteres para el secreto de alta inicial.
+Por decisión del responsable (23-09-2026), las contraseñas de Vacaciones tienen un
+mínimo de **8 caracteres** y un máximo de **256**, tanto para empleados como para
+administradores. Se aplica al alta, cambio, restablecimiento y secreto de alta inicial;
+los formularios y el servidor comprueban el mismo mínimo. No se cambian las contraseñas
+existentes ni los requisitos de credenciales externas, como la contraseña SMTP de Google.
+Se conservan el hash scrypt con sal aleatoria, los límites de intentos y la invalidación de sesiones al
+cambiar la contraseña y el cambio obligatorio del acceso inicial.
 El CLI solo permite el alta en una instalación sin usuarios y nunca elimina cuentas.
 Sin administrador activo, la portada muestra «activación pendiente» y `/ready`
 responde 503; `/health` comprueba únicamente que el servidor responde.

@@ -57,7 +57,7 @@ por compatibilidad el Message-ID SMTP; no representa una llamada a Gmail API.
 `BOOTSTRAP_ADMIN_USERNAME=electropolis` y `BOOTSTRAP_ADMIN_NAME=Electropolis`.
 `BOOTSTRAP_ADMIN_EMAIL` es opcional para esta primera cuenta y puede completarse
 más tarde; no se inventa un buzón. `BOOTSTRAP_ADMIN_PASSWORD` debe introducirse por
-`application_secret_link` cuando el responsable esté preparado, con 16 a 256 caracteres.
+`application_secret_link` cuando el responsable esté preparado, con 8 a 256 caracteres.
 No hay contraseña predeterminada ni se guarda la indicada en el chat en el repositorio.
 
 Después de aplicar el secreto mediante publicación, ejecutar una sola vez la tarea

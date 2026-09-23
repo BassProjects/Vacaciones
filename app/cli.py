@@ -52,9 +52,9 @@ def bootstrap_admin(database):
     email = str(TypeAdapter(EmailStr).validate_python(raw_email)).lower() if raw_email else None
     username = os.environ.get("BOOTSTRAP_ADMIN_USERNAME", "").strip().lower()
     password = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD", "")
-    if not username or len(username) > 80 or len(password) < 16:
+    if not username or len(username) > 80 or not 8 <= len(password) <= 256:
         raise ValueError(
-            "Explicit administrator identity and a password of at least 16 characters are required"
+            "Explicit administrator identity and a password of 8 to 256 characters are required"
         )
     with database.sessions() as db:
         lock_configuration(db)

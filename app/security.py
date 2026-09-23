@@ -28,8 +28,8 @@ def csrf_for(session_token: str) -> str:
 
 
 def hash_password(password: str):
-    if not isinstance(password, str) or not 12 <= len(password) <= 256:
-        raise ValueError("La contraseña debe tener entre 12 y 256 caracteres")
+    if not isinstance(password, str) or not 8 <= len(password) <= 256:
+        raise ValueError("La contraseña debe tener entre 8 y 256 caracteres")
     salt = secrets.token_hex(16)
     with PASSWORD_SLOTS:
         result = hashlib.scrypt(

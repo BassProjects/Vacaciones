@@ -35,7 +35,7 @@ producción: no ejecutarlo para eliminar datos o hacer funcionar una imagen ante
 ## Alta desde cero
 
 El responsable ha elegido no importar Vercel. El alta inicial `electropolis` puede
-realizarse sin email; necesita `BOOTSTRAP_ADMIN_PASSWORD` de 16 a 256 caracteres
+realizarse sin email; necesita `BOOTSTRAP_ADMIN_PASSWORD` de 8 a 256 caracteres
 por el canal seguro y obliga a cambiarlo antes del primer uso. Ejecutar el CLI
 `bootstrap-admin` una sola vez mediante una tarea pausada `initial-administrator`,
 sin contraseñas en su comando. Consultar `docs/smtp.md`. No borrar cuentas previas.

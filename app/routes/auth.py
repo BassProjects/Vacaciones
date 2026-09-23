@@ -53,10 +53,10 @@ def login(payload: Login, request: Request, db=Depends(get_db)):
     if user.password_scheme == "scrypt-node-v1":
         user.password_hash, user.password_salt, user.password_scheme = (
             hash_password(payload.password)
-            if len(payload.password) >= 12
+            if len(payload.password) >= 8
             else (user.password_hash, user.password_salt, user.password_scheme)
         )
-        if len(payload.password) < 12:
+        if len(payload.password) < 8:
             user.must_change_password = True
     response = JSONResponse({"user": user_json(user)})
     issue_session(db, user, response, request.app.state.settings)

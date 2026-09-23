@@ -22,8 +22,10 @@ def configure(monkeypatch, password=TEST_PASSWORD):
     monkeypatch.delenv("BOOTSTRAP_ADMIN_EMAIL", raising=False)
 
 
-def test_bootstrap_without_email_creates_exactly_one_admin(database, monkeypatch):
-    configure(monkeypatch)
+@pytest.mark.parametrize("length", [8, 12, 16, 256])
+def test_bootstrap_without_email_creates_exactly_one_admin(database, monkeypatch, length):
+    password = "x" * length
+    configure(monkeypatch, password)
     assert not database.ready()
     result = bootstrap_admin(database)
     assert result == {"status": "administrator_created", "password_change_required": True}
@@ -35,7 +37,7 @@ def test_bootstrap_without_email_creates_exactly_one_admin(database, monkeypatch
         assert user.username == "electropolis" and user.role == "admin" and user.active
         assert user.email is None and user.must_change_password
         assert verify_password(
-            TEST_PASSWORD, user.password_hash, user.password_salt, user.password_scheme
+            password, user.password_hash, user.password_salt, user.password_scheme
         )
         assert db.scalar(select(func.count()).select_from(LeaveRequest)) == 0
     with pytest.raises(ValueError, match="administrator already exists"):
@@ -44,13 +46,13 @@ def test_bootstrap_without_email_creates_exactly_one_admin(database, monkeypatch
         assert db.scalar(select(func.count()).select_from(Employee)) == 1
 
 
-@pytest.mark.parametrize("password", ["", "short123!", "x" * 15])
-def test_bootstrap_rejects_short_passwords_without_creating_an_account(
+@pytest.mark.parametrize("password", ["", "x" * 7, "x" * 257])
+def test_bootstrap_rejects_out_of_range_passwords_without_creating_an_account(
     database, monkeypatch, password
 ):
-    assert len(password) < 16
+    assert not 8 <= len(password) <= 256
     configure(monkeypatch, password)
-    with pytest.raises(ValueError, match="16 characters"):
+    with pytest.raises(ValueError, match="8 to 256 characters"):
         bootstrap_admin(database)
     with database.sessions() as db:
         assert db.scalar(select(func.count()).select_from(Employee)) == 0

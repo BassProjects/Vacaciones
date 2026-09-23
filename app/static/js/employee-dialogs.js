@@ -70,7 +70,7 @@ export function createFeature(ctx) {
               <input type="text" name="username" required />
             </div>
           </div>
-          ${passwordFieldHtml({ label: "Contraseña inicial", name: "password", autocomplete: "new-password", minlength: 12 })}
+          ${passwordFieldHtml({ label: "Contraseña inicial", name: "password", autocomplete: "new-password", minlength: 8 })}
         `
             : ""
         }
@@ -195,7 +195,7 @@ export function createFeature(ctx) {
       <div class="modal-sub">${user ? `${esc(user.name)} (${esc(user.username)})` : ""}</div>
       ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
       <form data-action="reset-password-form" data-user-id="${APP.modal.userId}">
-        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 12 })}
+        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 8 })}
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${

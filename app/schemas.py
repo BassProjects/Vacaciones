@@ -29,7 +29,7 @@ def real_date(value):
 ISODate = Annotated[date, BeforeValidator(real_date)]
 Role = Literal["worker", "manager", "admin"]
 AbsenceType = Literal["vacaciones", "ausencia", "baja", "permiso"]
-Password = Annotated[str, Field(min_length=12, max_length=256, strict=True)]
+Password = Annotated[str, Field(min_length=8, max_length=256, strict=True)]
 ShortText = Annotated[str, Field(min_length=1, max_length=160, strict=True)]
 
 

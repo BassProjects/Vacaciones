@@ -34,7 +34,7 @@ No exponer la base de datos ni eludir el proxy. Consultar `smtp.md`.
 
 `BOOTSTRAP_ADMIN_EMAIL` es opcional. `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_NAME` y
 `BOOTSTRAP_ADMIN_PASSWORD` solo son necesarios para un alta explícita cuando no existan
-usuarios en la instalación. El responsable ha elegido partir de cero. La contraseña debe tener entre 16 y 256 caracteres;
+usuarios en la instalación. El responsable ha elegido partir de cero. La contraseña debe tener entre 8 y 256 caracteres;
 se exige cambiarla al entrar. El CLI rechaza sobrescribir una cuenta o repetir el alta
 si ya existe un administrador activo. Retirar estas variables tras comprobar el acceso.
 

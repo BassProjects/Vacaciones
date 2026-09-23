@@ -99,7 +99,7 @@ export function createFeature(ctx) {
       ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
       <form data-action="change-password-form">
         ${passwordFieldHtml({ label: "Contraseña actual", name: "currentPassword", autocomplete: "current-password" })}
-        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 12 })}
+        ${passwordFieldHtml({ label: "Nueva contraseña", name: "newPassword", autocomplete: "new-password", minlength: 8 })}
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
