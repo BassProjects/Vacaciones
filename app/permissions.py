@@ -44,6 +44,7 @@ def user_json(user):
         "department": user.department,
         "role": user.role,
         "active": user.active,
+        "onboardingPending": user.onboarding_pending,
         "allowanceOverride": float(user.allowance_override)
         if user.allowance_override is not None
         else None,

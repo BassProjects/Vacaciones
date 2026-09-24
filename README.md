@@ -11,8 +11,9 @@ PostgreSQL y la interfaz de calendario. Estándar Electropolis **1.0.0**, planti
 Destino publicado: **https://app-vacaciones.dokploy.electropolis.es**.
 El responsable ha decidido empezar desde cero, sin importar datos de Vercel, con
 un único administrador cuyo usuario será `electropolis`. No se borra el origen.
-El esquema Python `0001_python` ya está preparado. El alta queda pendiente de una
-contraseña inicial válida introducida por el canal seguro; no hay acceso predeterminado.
+El esquema se gestiona mediante Alembic; la ampliación de registro usa la revisión
+`0002_onboarding`. En una instalación vacía, el alta del administrador requiere una
+contraseña inicial introducida por el canal seguro; no hay acceso predeterminado.
 El email no es obligatorio para esa primera cuenta. Se exige cambiar la contraseña
 al entrar antes de acceder al resto de funciones.
 
@@ -45,11 +46,26 @@ original sin crear otra cuenta ni reenviarla. La consulta de estados solo está 
 para administradores y no devuelve contenido de correos o credenciales.
 Consultar [verificación de invitaciones](docs/verification-invitation-delivery.md).
 
-La recuperación autónoma mediante enlace no está activada en esta entrega: la
-herramienta de edición bloqueó el formulario correspondiente. El administrador
-puede establecer/restablecer el acceso mediante la interfaz de empleados, con cambio
-obligatorio de contraseña e invalidación de sesiones. Las invitaciones por Gmail
-no envían contraseñas ni enlaces de activación que no funcionen.
+Las nuevas invitaciones permiten registrarse mediante un enlace personal de un solo
+uso, válido durante 48 horas desde el intento de envío. El trabajador confirma su
+nombre y fecha de nacimiento, crea una contraseña de 8 a 256 caracteres y la repite.
+El correo y el usuario están vinculados a la invitación; no se pueden sustituir para
+activar otra cuenta. Compartir el día y mes del cumpleaños es opcional y no se publica
+el año. El enlace no inicia sesión automáticamente ni envía contraseñas por correo.
+
+La lista de trabajadores separa desactivar, reactivar y eliminar. Solo administradores
+pueden hacerlo; no se permite eliminar/desactivar la propia cuenta ni dejar la app
+sin un administrador registrado y activo. Eliminar exige escribir el usuario exacto
+y se rechaza si existen solicitudes, políticas, delegaciones, importaciones o
+justificantes asociados. Se conserva la auditoría y no se borra historial en cascada.
+Los pendientes de registro tienen un botón para enviar un nuevo enlace. La suspensión,
+el cambio de correo o la sustitución del enlace invalidan los anteriores.
+
+La recuperación autónoma de una contraseña olvidada sigue siendo una función distinta
+y no se ha activado. Para usuarios ya registrados se conserva el restablecimiento
+administrativo con cambio obligatorio e invalidación de sesiones. Para invitados
+pendientes se utiliza el enlace de registro, sin saltarse los campos obligatorios.
+Consultar [registro y gestión de trabajadores](docs/onboarding-and-workers.md).
 
 ## Funciones
 

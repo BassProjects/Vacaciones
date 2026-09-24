@@ -1,5 +1,6 @@
 import { apiFetch } from './api.js';
 import { eyeIconSvg } from './shared.js';
+import { manageWorker } from './worker-management.js';
 export function createFeature(ctx) {
   const {APP, root, runtime} = ctx;
   const {handleAddHoliday, handleAddWorker, handleApprove, handleChangePassword, handleConfirmImportCalamari, handleConfirmImportHolidays, handleDeleteHoliday, handleDeleteWorker, handleEditProfile, handleEditWorker, handleImportCalamariUpload, handleImportHolidaysUpload, handleInviteWorkers, handleLogin, handleLogout, handleRequestSubmit, handleResetPassword, handleResolveWithNote, handleUploadAttachment, loadAttachmentsFor, loadRequestDetail, render, shiftCalendarMonth, shiftRequestCalMonth, submitRequestPayload, toggleDeptFilter} = ctx.calls;
@@ -214,6 +215,12 @@ export function createFeature(ctx) {
         APP.modalError = "";
         render();
         break;
+      case "manage-worker":
+        if (APP.modalLoading) return;
+        APP.modal = {type: 'manageWorker', userId: el.dataset.id, operation: el.dataset.operation, requestKey: crypto.randomUUID()};
+        APP.modalError = '';
+        render();
+        break;
       case "open-delete-worker-modal":
         APP.modal = { type: "deleteWorker", userId: el.dataset.id };
         APP.modalError = "";
@@ -307,6 +314,8 @@ export function createFeature(ctx) {
         return handleInviteWorkers(fd);
       case "reset-data-form":
         window.location.assign("/admin"); return;
+      case "manage-worker-form":
+        return manageWorker(ctx, fd);
       case "edit-worker-form":
         return handleEditWorker(fd, form);
       case "reset-password-form":

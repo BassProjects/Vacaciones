@@ -9,7 +9,8 @@ from app.db import audit, get_db, lock_configuration
 from app.invitation_delivery import attach_delivery, delivery_state
 from app.mailer import queue_password_link
 from app.models import Calendar, Department, Employee, Outbox, PasswordReset, new_id
-from app.permissions import user_json
+from app.onboarding import lock_mail_changes, revoke_activation
+from app.permissions import today, user_json
 from app.schemas import EmployeeCreate, EmployeeUpdate, Invitations, ResetPassword
 from app.security import administrator, current_user, hash_password, revoke_sessions
 
@@ -28,7 +29,12 @@ def check_last_admin(db, employee, next_role, next_active):
         count = db.scalar(
             select(func.count())
             .select_from(Employee)
-            .where(Employee.role == "admin", Employee.active.is_(True), Employee.id != employee.id)
+            .where(
+                Employee.role == "admin",
+                Employee.active.is_(True),
+                Employee.onboarding_pending.is_(False),
+                Employee.id != employee.id,
+            )
         )
         if not count:
             raise HTTPException(
@@ -92,10 +98,14 @@ def edit_employee(
     me=Depends(current_user),
     db=Depends(get_db),
 ):
+    changes = payload.model_dump(exclude_unset=True)
+    if set(changes) & {"active", "email"}:
+        lock_mail_changes(db)
     lock_configuration(db)
     db.refresh(me)
+    if not me.active or me.onboarding_pending:
+        raise HTTPException(403, "No autorizado")
     is_admin = me.role == "admin"
-    changes = payload.model_dump(exclude_unset=True)
     if not is_admin:
         if me.id != user_id or set(changes) - {"name", "email", "birth_date", "share_birthday"}:
             raise HTTPException(403, "No autorizado")
@@ -106,7 +116,15 @@ def edit_employee(
         if key in changes and changes[key] is None:
             raise HTTPException(400, "No se admite un valor vacío en " + key)
     role, active = changes.get("role", employee.role), changes.get("active", employee.active)
+    if employee.id == me.id and not active:
+        raise HTTPException(409, "No puedes desactivar tu propia cuenta")
     check_last_admin(db, employee, role, active)
+    if "birth_date" in changes:
+        birthday = changes["birth_date"]
+        if birthday is not None and birthday >= today():
+            raise HTTPException(400, "La fecha de nacimiento debe ser anterior a hoy")
+        if birthday is None and employee.birth_date is not None:
+            raise HTTPException(400, "La fecha de nacimiento es obligatoria")
     department_valid(db, changes.get("department", employee.department), role)
     if "calendar_id" in changes and not db.get(Calendar, changes["calendar_id"]):
         raise HTTPException(400, "Calendario no válido")
@@ -123,9 +141,22 @@ def edit_employee(
     end = changes.get("employed_to", employee.employed_to)
     if beginning and end and end < beginning:
         raise HTTPException(400, "Las fechas de empleo no están ordenadas")
+    if ("active" in changes and not active) or (
+        "email" in changes and changes["email"] != employee.email
+    ):
+        revoke_activation(db, employee.id, "ACCOUNT_CHANGED")
+    old_active = employee.active
     for key, value in changes.items():
         setattr(employee, key, value)
-    if set(changes) & {"role", "active", "department"}:
+    if old_active != employee.active:
+        audit(
+            db,
+            me,
+            "employee.reactivated" if employee.active else "employee.deactivated",
+            employee.id,
+            request=request,
+        )
+    if set(changes) & {"role", "active", "department", "email"}:
         revoke_sessions(db, employee.id)
     audit(db, me, "employee.updated", employee.id, {"fields": sorted(changes)}, request)
     db.commit()
@@ -136,7 +167,11 @@ def edit_employee(
 def deactivate_employee(
     user_id: str, request: Request, me=Depends(administrator), db=Depends(get_db)
 ):
+    lock_mail_changes(db)
     lock_configuration(db)
+    db.refresh(me)
+    if not me.active or me.onboarding_pending or me.role != "admin":
+        raise HTTPException(403, "No autorizado")
     employee = db.get(Employee, user_id)
     if not employee:
         raise HTTPException(404, "Empleado no encontrado")
@@ -144,6 +179,7 @@ def deactivate_employee(
         raise HTTPException(409, "No puedes desactivar tu propia cuenta desde esta acción")
     check_last_admin(db, employee, employee.role, False)
     employee.active = False
+    revoke_activation(db, employee.id, "ACCOUNT_DISABLED")
     revoke_sessions(db, employee.id)
     audit(db, me, "employee.deactivated", employee.id, request=request)
     db.commit()
@@ -162,6 +198,10 @@ def reset_employee_password(
     employee = db.get(Employee, user_id)
     if not employee:
         raise HTTPException(404, "Empleado no encontrado")
+    if employee.onboarding_pending:
+        raise HTTPException(
+            409, "El trabajador debe completar su registro. Envía un enlace de activación."
+        )
     employee.password_hash, employee.password_salt, employee.password_scheme = hash_password(
         payload.new_password
     )
@@ -252,6 +292,7 @@ def invite_employees(
             role=payload.role,
             department=payload.department,
             must_change_password=True,
+            onboarding_pending=True,
         )
         db.add(user)
         db.flush()

@@ -101,6 +101,7 @@ def current_user(request: Request, db=Depends(get_db)):
             SessionToken.token_hash == digest(token),
             SessionToken.expires_at > now(),
             Employee.active.is_(True),
+            Employee.onboarding_pending.is_(False),
         )
     )
     if not user:

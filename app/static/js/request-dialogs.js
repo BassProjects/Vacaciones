@@ -1,4 +1,5 @@
 import { apiFetch } from './api.js';
+import { workerManagementModal } from './worker-management.js';
 import { esc, fmtDate, fmtDays, passwordFieldHtml } from './shared.js';
 export function createFeature(ctx) {
   const {APP, root, runtime} = ctx;
@@ -13,6 +14,7 @@ export function createFeature(ctx) {
     else if (m.type === "confirmOverAllowance") inner = renderConfirmOverAllowanceModal(m.extra);
     else if (m.type === "addWorker") inner = renderWorkerFormModal(null);
     else if (m.type === "inviteWorkers") inner = renderInviteWorkersModal();
+    else if (m.type === "manageWorker") inner = workerManagementModal(APP);
     
     else if (m.type === "editWorker") inner = renderWorkerFormModal(APP.users.find((u) => u.id === m.userId));
     else if (m.type === "resetPassword") inner = renderResetPasswordModal();

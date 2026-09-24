@@ -195,7 +195,7 @@ def create_app(settings=None):
             )
             if not request.url.path.startswith("/static/"):
                 response.headers["Cache-Control"] = "no-store"
-            if request.method == "GET" and request.url.path in {"/", "/admin"}:
+            if request.method == "GET" and request.url.path in {"/", "/admin", "/activate"}:
                 token = request.cookies.get(SESSION_COOKIE, "")
                 value = (
                     csrf_for(token)
@@ -244,6 +244,18 @@ def create_app(settings=None):
             context={"configured": database.ready(), "name": "Vacaciones · Sepiamary"},
         )
 
+    @application.get("/activate", include_in_schema=False)
+    def activation_page(request: Request):
+        from datetime import timedelta
+
+        from app.permissions import today
+
+        return templates.TemplateResponse(
+            request=request,
+            name="activate.html",
+            context={"birth_max": (today() - timedelta(days=1)).isoformat()},
+        )
+
     @application.get("/admin", include_in_schema=False)
     def operations(request: Request, me=Depends(administrator)):
         return templates.TemplateResponse(request=request, name="admin.html", context={"me": me})
@@ -252,9 +264,27 @@ def create_app(settings=None):
     def openapi(me=Depends(administrator)):
         return application.openapi()
 
-    from app.routes import admin, attachments, auth, imports, requests, users
+    from app.routes import (
+        admin,
+        attachments,
+        auth,
+        employee_management,
+        imports,
+        registration,
+        requests,
+        users,
+    )
 
-    for module in (auth, users, requests, attachments, imports, admin):
+    for module in (
+        auth,
+        users,
+        requests,
+        attachments,
+        imports,
+        admin,
+        registration,
+        employee_management,
+    ):
         application.include_router(module.router)
     application.mount(
         "/static", StaticFiles(directory=ROOT / "static", check_dir=False), name="static"

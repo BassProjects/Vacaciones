@@ -77,6 +77,7 @@ class Employee(Base):
     allowance_override: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    onboarding_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     birth_date: Mapped[date | None] = mapped_column(Date)
     share_birthday: Mapped[bool] = mapped_column(Boolean, default=False)
     calendar_id: Mapped[str] = mapped_column(ForeignKey("work_calendars.id"), default="default")
@@ -207,6 +208,15 @@ class PasswordReset(Base):
     __tablename__ = "password_resets"
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("employees.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ActivationToken(Base):
+    __tablename__ = "employee_activations"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("employees.id"), index=True)
+    email: Mapped[str] = mapped_column(String(254))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used: Mapped[bool] = mapped_column(Boolean, default=False)
 

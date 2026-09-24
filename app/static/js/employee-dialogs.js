@@ -155,7 +155,7 @@ export function createFeature(ctx) {
 
     return `
       <div class="modal-title">Invitar trabajadores por correo</div>
-      <div class="modal-sub">Pega una lista de correos (uno por línea). Opcionalmente puedes indicar el nombre antes del correo separado por una coma: "Nombre Apellido, correo@empresa.com". Se creará cada cuenta y se preparará un aviso de bienvenida sin contraseña. Establece después su contraseña inicial desde la administración y comunícala por el canal interno acordado. El primer acceso exigirá cambiarla.</div>
+      <div class="modal-sub">Pega una lista de correos (uno por línea). Opcionalmente puedes indicar el nombre antes del correo separado por una coma: "Nombre Apellido, correo@empresa.com". Cada trabajador recibirá un enlace personal para registrarse, crear su contraseña y completar su nombre y fecha de nacimiento. El enlace dura 48 horas y sirve una sola vez. No necesitas crear ni comunicar su contraseña.</div>
       ${APP.modalError ? `<div class="form-error">${esc(APP.modalError)}</div>` : ""}
       <form data-action="invite-workers-form">
         <div class="field">

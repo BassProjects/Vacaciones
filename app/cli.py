@@ -44,7 +44,9 @@ def migrate(database):
             connection.rollback()
             connection.execute(text("SELECT pg_advisory_unlock(768429114)"))
             connection.commit()
-    return {"status": "migrated", "revision": "0001_python"}
+    from app.db import SCHEMA_REVISION
+
+    return {"status": "migrated", "revision": SCHEMA_REVISION}
 
 
 def bootstrap_admin(database):

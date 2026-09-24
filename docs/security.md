@@ -42,11 +42,26 @@ No se almacenan credenciales en Git, frontend o logs. La respuesta de salud y la
 negociación TLS no certifican autenticación o entrega: se verifican por separado.
 Revisar permisos y revocación de contraseñas SMTP mediante el canal seguro.
 
-No hay un acceso autónomo por enlace de recuperación en esta entrega: su formulario
-no pudo incorporarse mediante la herramienta disponible. No se publicitan ni envían
-esos enlaces. El restablecimiento administrativo está disponible con cambio obligatorio
-de contraseña. No afirmar que las invitaciones proporcionan inicio de sesión completo
-sin ese paso administrativo.
+El registro por invitación utiliza tokens aleatorios de 32 bytes y almacena únicamente
+su SHA-256 en una tabla separada de la recuperación de contraseñas. Son de un solo uso,
+válidos durante 48 horas y vinculados a la cuenta y al correo invitado. El token viaja
+en el fragmento del enlace; la página lo retira del historial y lo conserva solo en
+memoria. Las consultas usan POST con CSRF y origen, sin tokens en URLs de la API.
+Un GET de la página no consume el enlace. No se guardan tokens en texto claro en la
+outbox, auditoría o logs. El registro no permite cambiar rol, correo ni usuario.
+
+Una cuenta pendiente no puede iniciar sesión ni usar la recuperación de contraseña
+para omitir el registro. El nombre, fecha de nacimiento anterior a hoy y contraseña
+confirmada de 8 a 256 caracteres se validan también en el servidor. Compartir cumpleaños
+es opcional. El registro, suspensión y cambio de correo invalidan enlaces y sesiones.
+El reenvío requiere administrador, confirmación de acción en la interfaz, clave de
+idempotencia y límite por cuenta. Se conserva el historial de correos enviados.
+
+La recuperación autónoma de contraseñas olvidadas sigue sin interfaz habilitada;
+el restablecimiento administrativo se mantiene para cuentas ya registradas.
+La eliminación individual exige confirmación exacta y ausencia de historial de trabajo;
+no elimina eventos de auditoría ni solicitudes en cascada. La suspensión y reactivación
+conservan datos. Se protegen la propia cuenta y el último administrador registrado.
 
 ## Limitaciones y decisiones pendientes
 

@@ -1,4 +1,5 @@
 import { apiFetch } from './api.js';
+import { workerActionsHtml } from './worker-management.js';
 import { STATUS_BADGE_CLASS, STATUS_LABELS, computeAllowance, currentYear, esc, fmtDate, fmtDateTime, fmtDays, roleLabel } from './shared.js';
 export function createFeature(ctx) {
   const {APP, root, runtime} = ctx;
@@ -54,20 +55,14 @@ export function createFeature(ctx) {
           <td class="mono">${fmtDays(info.consumed)}</td>
           <td class="mono" style="color:var(--green-fg);font-weight:700">${fmtDays(info.remaining)}</td>
           <td>${
-            u.active
-              ? '<span class="badge badge-approved">Activo</span>'
-              : '<span class="badge badge-cancelled">Inactivo</span>'
+            !u.active
+              ? '<span class="badge badge-cancelled">Desactivado</span>'
+              : u.onboardingPending
+                ? '<span class="badge badge-pending">Pendiente de registro</span>'
+                : '<span class="badge badge-approved">Activo</span>'
           }</td>
           <td>
-            <div style="display:flex;gap:6px">
-              <button type="button" class="btn btn-outline btn-sm" data-action="open-edit-worker-modal" data-id="${u.id}">Editar</button>
-              <button type="button" class="btn btn-outline btn-sm" data-action="open-reset-password-modal" data-id="${u.id}">Contraseña</button>
-              ${
-                u.id !== APP.me.id
-                  ? `<button type="button" class="btn btn-danger btn-sm" data-action="open-delete-worker-modal" data-id="${u.id}">Desactivar</button>`
-                  : ""
-              }
-            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${workerActionsHtml(u, APP.me)}</div>
           </td>
         </tr>
       `;

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Activa tu cuenta · Vacaciones</title>
+  <link rel="icon" href="/static/icon.png">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<main class="login-screen">
+  <section class="login-card" aria-labelledby="activation-title">
+    <img src="/static/brand-logo-dark.png" alt="Sepiamary" style="max-width:180px;width:100%;height:auto">
+    <h1 id="activation-title">Activa tu cuenta</h1>
+    <p id="activation-status" role="status">Comprobando tu invitación…</p>
+    <p id="activation-error" class="form-error" role="alert" hidden></p>
+    <form id="activation-form" hidden>
+      <div class="field"><label for="activation-name">Nombre y apellidos *</label>
+        <input id="activation-name" name="name" type="text" autocomplete="name" maxlength="160" required></div>
+      <div class="field"><label for="activation-email">Correo de la invitación</label>
+        <input id="activation-email" type="email" readonly></div>
+      <div class="field"><label for="activation-username">Usuario para iniciar sesión</label>
+        <input id="activation-username" type="text" readonly autocomplete="username"></div>
+      <div class="field"><label for="activation-birth">Fecha de nacimiento *</label>
+        <input id="activation-birth" name="birthDate" type="date" min="1900-01-01" max="{{ birth_max }}" autocomplete="bday" required>
+        <small>Obligatoria para completar el registro. No se publica el año de nacimiento.</small></div>
+      <div class="field"><label for="activation-password">Crea tu contraseña *</label>
+        <input id="activation-password" name="newPassword" type="password" minlength="8" maxlength="256" autocomplete="new-password" aria-describedby="password-help" required>
+        <small id="password-help">Entre 8 y 256 caracteres.</small></div>
+      <div class="field"><label for="activation-confirm">Repite la contraseña *</label>
+        <input id="activation-confirm" name="confirmPassword" type="password" minlength="8" maxlength="256" autocomplete="new-password" required></div>
+      <label class="checkbox-row"><input type="checkbox" name="shareBirthday"> Quiero compartir solo el día y mes de mi cumpleaños con el equipo (opcional).</label>
+      <button type="submit" class="btn btn-primary btn-block">Crear contraseña y activar cuenta</button>
+    </form>
+    <p id="activation-success" class="form-success" role="status" hidden></p>
+    <p><a class="btn btn-outline" href="/">Ir al inicio de sesión</a></p>
+    <noscript>Activa JavaScript para completar el registro de forma segura.</noscript>
+  </section>
+</main>
+<script type="module" src="/static/js/activation.js"></script>
+</body>
+</html>

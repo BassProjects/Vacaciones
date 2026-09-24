@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.models import AuditEvent, Configuration, Employee
 
-SCHEMA_REVISION = "0001_python"
+SCHEMA_REVISION = "0002_onboarding"
 
 
 class Database:
@@ -49,7 +49,11 @@ class Database:
                 revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
                 admin = conn.execute(
                     select(Employee.id)
-                    .where(Employee.active.is_(True), Employee.role == "admin")
+                    .where(
+                        Employee.active.is_(True),
+                        Employee.role == "admin",
+                        Employee.onboarding_pending.is_(False),
+                    )
                     .limit(1)
                 ).scalar()
                 configured = conn.execute(

@@ -49,7 +49,7 @@ def test_invitation_is_delivered_and_status_changes_without_resending(
     assert result == {"sent": 1, "pending": 0, "failed": 0, "uncertain": 0}
     args = transport.send.call_args.args
     assert args[0] == "invited@example.com"
-    assert "Synthetic Worker" in args[2] and "Abrir la aplicación" in args[2]
+    assert "Synthetic Worker" in args[2] and "Registrarme y activar mi cuenta" in args[2]
     assert mail_enabled.smtp_password not in args[2]
     status = admin.get("/api/users/invitation-status", params={"ids": message_id})
     assert status.status_code == 200
