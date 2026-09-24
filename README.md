@@ -33,8 +33,17 @@ su proxy CONNECT autorizado y la variable inyectada `SMTP_PROXY_URL`. El cliente
 verifica TLS contra el servidor original y no permite acceso directo en producción.
 La puesta en marcha comprueba primero conexión/cifrado sin autenticar, después un
 único mensaje autorizado y finalmente activa `MAIL_ENABLED` y `gmail-outbox` cada
-cinco minutos. Ver [SMTP y operación](docs/smtp.md) y el
+minuto. Ver [SMTP y operación](docs/smtp.md) y el
 [informe del cliente proxy](docs/verification-smtp-proxy.md).
+
+Las invitaciones se guardan en la bandeja de salida y se envían en la siguiente
+pasada del procesador; no se promete entrega instantánea ni recepción en bandeja.
+La ventana consulta cada 20 segundos el estado real mientras haya correos pendientes,
+sin bloquear el envío al cerrarla. Distingue enviado, pendiente, error y resultado
+incierto. Volver a introducir un empleado existente muestra el estado de su invitación
+original sin crear otra cuenta ni reenviarla. La consulta de estados solo está permitida
+para administradores y no devuelve contenido de correos o credenciales.
+Consultar [verificación de invitaciones](docs/verification-invitation-delivery.md).
 
 La recuperación autónoma mediante enlace no está activada en esta entrega: la
 herramienta de edición bloqueó el formulario correspondiente. El administrador

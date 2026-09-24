@@ -62,7 +62,7 @@ ni respuestas privadas del servidor. Una prueba fallida devuelve código de proc
 La aceptación SMTP no confirma la recepción en la bandeja de entrada.
 
 Solo después de esa aceptación, aplicar `MAIL_ENABLED=true` mediante publicación y
-activar la tarea existente `gmail-outbox`, con `*/5 * * * *`, zona `Europe/Madrid` y:
+activar la tarea existente `gmail-outbox`, con `* * * * *` (cada minuto), zona `Europe/Madrid` y:
 
 ```sh
 /app/.venv/bin/python -m app.cli mail-drain --limit 10 --seconds 45

@@ -1,12 +1,14 @@
+import re
 import secrets
 import unicodedata
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select, update
 
 from app.db import audit, get_db, lock_configuration
+from app.invitation_delivery import attach_delivery, delivery_state
 from app.mailer import queue_password_link
-from app.models import Calendar, Department, Employee, PasswordReset, new_id
+from app.models import Calendar, Department, Employee, Outbox, PasswordReset, new_id
 from app.permissions import user_json
 from app.schemas import EmployeeCreate, EmployeeUpdate, Invitations, ResetPassword
 from app.security import administrator, current_user, hash_password, revoke_sessions
@@ -171,6 +173,25 @@ def reset_employee_password(
     return {"ok": True}
 
 
+@router.get("/invitation-status")
+def invitation_status(
+    ids: str = Query(min_length=1, max_length=8100),
+    me=Depends(administrator),
+    db=Depends(get_db),
+):
+    message_ids = ids.split(",")
+    if len(message_ids) > 100 or any(
+        not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", identifier) for identifier in message_ids
+    ):
+        raise HTTPException(400, "Identificadores de invitación no válidos")
+    messages = db.scalars(
+        select(Outbox).where(
+            Outbox.id.in_(set(message_ids)), Outbox.event_key.startswith("invite:")
+        )
+    )
+    return {"messages": [delivery_state(item) for item in messages]}
+
+
 @router.post("/invite")
 def invite_employees(
     payload: Invitations, request: Request, me=Depends(administrator), db=Depends(get_db)
@@ -182,7 +203,7 @@ def invite_employees(
     from pydantic import EmailStr, TypeAdapter
 
     validator = TypeAdapter(EmailStr)
-    created, skipped, failed = [], [], []
+    created, skipped, failed, existing = [], [], [], []
     for raw in payload.lines:
         parts = [x.strip() for x in raw.split(",")]
         email = parts[-1].lower()
@@ -191,8 +212,17 @@ def invite_employees(
         except ValueError:
             failed.append({"line": raw[:200], "error": "Correo no válido"})
             continue
-        if db.scalar(select(Employee.id).where(Employee.email == email)):
+        previous = db.scalar(select(Employee).where(Employee.email == email))
+        if previous:
             skipped.append(email)
+            existing.append(
+                {
+                    "userId": previous.id,
+                    "name": previous.name,
+                    "email": email,
+                    "username": previous.username,
+                }
+            )
             continue
         name = parts[0] if len(parts) > 1 else email.split("@")[0].replace(".", " ").title()
         if not 1 <= len(name) <= 160:
@@ -227,14 +257,8 @@ def invite_employees(
         db.flush()
         queue_password_link(db, user, "invite:" + user.id, invitation=True)
         audit(db, me, "employee.invited", user.id, {"role": user.role}, request)
-        created.append(
-            {
-                "name": name,
-                "email": email,
-                "username": username,
-                "mailSent": False,
-                "mailQueued": True,
-            }
-        )
+        created.append({"userId": user.id, "name": name, "email": email, "username": username})
     db.commit()
-    return {"created": created, "skipped": skipped, "failed": failed}
+    # Read the durable state, including an existing invitation, without resending it.
+    attach_delivery(db, created + existing)
+    return {"created": created, "skipped": skipped, "failed": failed, "existing": existing}

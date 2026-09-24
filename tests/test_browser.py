@@ -244,3 +244,111 @@ def test_eight_character_password_forms_in_browser(browser_server, viewport):
         finally:
             context.close()
             browser.close()
+
+
+@pytest.mark.parametrize("width", [1365, 390])
+@pytest.mark.parametrize("terminal_status", ["sent", "failed"])
+def test_invitation_status_refreshes_in_browser(browser_server, width, terminal_status):
+    """Real UI with controlled SMTP-status responses; backend delivery is tested separately."""
+    import json
+
+    binary = shutil.which("chromium")
+    if not binary:
+        pytest.skip("Install Chromium for browser verification")
+    delivery_ready, submissions, status_reads = False, [], []
+    errors = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            executable_path=binary,
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking"],
+        )
+        context = browser.new_context(viewport={"width": width, "height": 900})
+        # Accelerate only the existing polling interval; never contact a real SMTP service.
+        context.add_init_script("""
+            const originalInterval = window.setInterval;
+            window.setInterval = (callback, delay, ...args) =>
+                originalInterval(callback, delay === 20000 ? 150 : delay, ...args);
+        """)
+        row = {
+            "userId": "synthetic-user",
+            "name": "Synthetic Invitation",
+            "email": "browser-invite@example.com",
+            "username": "browser-invite",
+            "mailId": "synthetic-invitation",
+            "mailStatus": "pending",
+            "mailQueued": True,
+            "mailSent": False,
+            "mailError": None,
+        }
+
+        def route_request(route):
+            url = urlparse(route.request.url)
+            if url.netloc != urlparse(browser_server).netloc:
+                route.abort()
+            elif url.path == "/api/users/invite":
+                submissions.append(route.request.method)
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=json.dumps(
+                        {
+                            "created": [row],
+                            "skipped": [],
+                            "failed": [],
+                            "existing": [],
+                        }
+                    ),
+                )
+            elif url.path == "/api/users/invitation-status":
+                status_reads.append(route.request.method)
+                status = terminal_status if delivery_ready else "pending"
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=json.dumps(
+                        {
+                            "messages": [
+                                {
+                                    "mailId": row["mailId"],
+                                    "mailStatus": status,
+                                    "mailQueued": status == "pending",
+                                    "mailSent": status == "sent",
+                                    "mailError": "SMTP_AUTH_REJECTED"
+                                    if status == "failed"
+                                    else None,
+                                }
+                            ],
+                        }
+                    ),
+                )
+            else:
+                route.continue_()
+
+        context.route("**/*", route_request)
+        page = context.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        try:
+            login(page, browser_server, "admin")
+            page.locator(".app-shell").wait_for()
+            if width == 390:
+                page.locator('[data-action="toggle-mobile-menu"]:visible').click()
+            page.locator('[data-action="nav"][data-route="administracion"]:visible').first.click()
+            page.locator('[data-action="open-invite-modal"]').click()
+            form = page.locator('form[data-action="invite-workers-form"]')
+            form.locator('[name="emails"]').fill("browser-invite@example.com")
+            form.locator('button[type="submit"]').click()
+            output = page.locator('[data-role="invitation-delivery"]')
+            output.get_by_text("Pendiente de envío", exact=False).wait_for()
+            delivery_ready = True
+            expected = "Correo enviado" if terminal_status == "sent" else "Correo no enviado"
+            output.get_by_text(expected, exact=False).wait_for(timeout=10000)
+            assert "Pendiente de envío" not in output.inner_text()
+            assert submissions == ["POST"]
+            assert status_reads and set(status_reads) == {"GET"}
+            assert errors == []
+            page.locator('[data-action="close-modal"]').click()
+            page.locator(".modal-overlay").wait_for(state="hidden")
+        finally:
+            context.close()
+            browser.close()

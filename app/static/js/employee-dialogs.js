@@ -1,5 +1,6 @@
 import { apiFetch } from './api.js';
 import { esc, passwordFieldHtml, roleLabel } from './shared.js';
+import { invitationMailText } from './invitation-delivery.js';
 export function createFeature(ctx) {
   const {APP, root, runtime} = ctx;
   function renderEditProfileModal() {
@@ -116,36 +117,29 @@ export function createFeature(ctx) {
   function renderInviteWorkersModal() {
     const m = APP.modal;
     if (m.step === "result") {
+      const existing = m.results.existing || m.results.skipped.map(email => ({email, mailStatus: 'not_queued'}));
+      const renderDelivery = (r, existingAccount) => `
+        <div class="invite-result-row">
+          <span class="badge ${r.mailStatus === 'sent' ? 'badge-approved' : 'badge-cancelled'}">${existingAccount ? 'Ya existía' : 'Cuenta creada'}</span>
+          <span class="wrap">${r.name ? esc(r.name) + ' — ' : ''}${esc(r.email)}${r.username ? ' (usuario: ' + esc(r.username) + ')' : ''}
+            <br><span data-role="invitation-delivery">${esc(invitationMailText(r))}</span>
+          </span>
+        </div>`;
       const rows = [
-        ...m.results.created.map(
-          (r) => `
-          <div class="invite-result-row">
-            <span class="badge badge-approved">Invitado</span>
-            <span class="wrap">${esc(r.name)} — ${esc(r.email)} (usuario: ${esc(r.username)})${
-            r.mailQueued ? " · aviso pendiente de envío" : r.mailSent ? " · aviso enviado" : " · aviso no enviado"
-          }</span>
-          </div>`
-        ),
-        ...m.results.skipped.map(
-          (email) => `
-          <div class="invite-result-row">
-            <span class="badge badge-cancelled">Ya existía</span>
-            <span class="wrap">${esc(email)}</span>
-          </div>`
-        ),
-        ...m.results.failed.map(
-          (f) => `
+        ...m.results.created.map(r => renderDelivery(r, false)),
+        ...existing.map(r => renderDelivery(r, true)),
+        ...m.results.failed.map(f => `
           <div class="invite-result-row">
             <span class="badge badge-rejected">Error</span>
             <span class="wrap">${esc(f.line)} — ${esc(f.error)}</span>
-          </div>`
-        ),
-      ].join("");
-
+          </div>`),
+      ].join('');
       return `
         <div class="modal-title">Resultado de las invitaciones</div>
-        <div class="modal-sub">${m.results.created.length} cuenta(s) creada(s). Consulta el estado de sus avisos en la bandeja de salida.</div>
-        <div class="import-review-list">${rows || `<div class="invite-result-row">Sin resultados</div>`}</div>
+        <div class="modal-sub">${m.results.created.length} cuenta(s) creada(s). Los correos pendientes se procesan cada minuto y su estado se actualiza automáticamente aquí. Cerrar esta ventana no detiene el envío.</div>
+        <p class="faint">«Enviado» confirma la aceptación por el servidor de correo, no la llegada a la bandeja de entrada. Las cuentas existentes no se vuelven a crear ni sus correos se reenvían.</p>
+        ${m.deliveryRefreshError ? `<p class="form-error">${esc(m.deliveryRefreshError)}</p>` : ''}
+        <div class="import-review-list" aria-live="polite">${rows || '<div class="invite-result-row">Sin resultados</div>'}</div>
         <div class="modal-actions">
           <button type="button" class="btn btn-primary" data-action="close-modal">Cerrar</button>
         </div>

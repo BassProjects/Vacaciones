@@ -46,7 +46,8 @@ La ampliación operativa actual del conector ofrece tareas nativas `schedule_*`,
 la guía común 1.0.0 copiada describe cron como pendiente. No modifica la versión del
 estándar ni concede recursos adicionales.
 
-Conservar el nombre estable `gmail-outbox` (ahora transporte SMTP), zona `Europe/Madrid`, `*/5 * * * *`, con el comando:
+Conservar el nombre estable `gmail-outbox` (ahora transporte SMTP), zona `Europe/Madrid`,
+`* * * * *` (cada minuto desde la corrección de invitaciones del 24-09-2026), con el comando:
 
 ```sh
 /app/.venv/bin/python -m app.cli mail-drain --limit 10 --seconds 45

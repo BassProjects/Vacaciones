@@ -1,4 +1,5 @@
 import { apiFetch } from './api.js';
+import { refreshInvitationDelivery } from './invitation-delivery.js';
 import { currentYear, esc, fmtDays, passwordFieldHtml, setBalances, wordmarkHtml } from './shared.js';
 export function createFeature(ctx) {
   const {APP, root, runtime} = ctx;
@@ -88,6 +89,7 @@ export function createFeature(ctx) {
     stopPolling();
     runtime.pollTimer = setInterval(() => {
       loadBootstrap(true);
+      refreshInvitationDelivery(APP, runtime, render);
     }, 20000);
   }
 
