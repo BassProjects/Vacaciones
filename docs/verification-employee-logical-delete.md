@@ -69,5 +69,22 @@ f726e04575cffad179d6e6963d5b348b1763e259c024452e12c57954ead7349d app/security.py
 bd4cf90da48c73b589b485256ba6d2c9c034cc21977a61697f0094be9bd40a18 tests/test_onboarding_migration.py
 ```
 
-Este cambio está probado en desarrollo. No se ha guardado todavía en GitHub ni
-publicado; producción sigue en la revisión indicada al inicio hasta autorización expresa.
+La eliminación lógica se publicó primero en `65e5d5f321c7894a0e61f6059ac5dc9a89fbed76` y la migración `0003_employee_logical_delete` quedó aplicada.
+
+## Visibilidad desde Editar trabajador
+
+Tras comprobar que el botón solo aparecía en la fila de Empleados, se añadió también
+**Eliminar trabajador** al pie del formulario **Editar trabajador** para cualquier cuenta
+distinta de la del administrador actual. Abre exactamente la misma confirmación segura;
+no crea una segunda ruta ni rebaja controles del servidor.
+
+Trabajo `41f233857781265f1dd9ee151ae8dee9`: completed, salida 0. Se comprobó sintaxis
+JavaScript y se ejecutó de nuevo la batería completa con PostgreSQL 16 y Chromium
+ais­lados: **191 pruebas superadas, 0 fallidas y 0 omitidas**. La prueba de navegador
+abre Editar trabajador en escritorio y móvil, pulsa Eliminar trabajador, valida una
+confirmación incorrecta y después completa la eliminación confirmada.
+
+Contenido ejecutable probado: `app/static/js/employee-dialogs.js`
+`dc95e1acef06c92fa066fe39a5f11400335077dfd225aaf27a43117839890f34`; prueba de
+navegador `tests/test_employee_onboarding_browser.py`
+`f106ee230b10049fa6cbd0265d8e93bd3889d3517d53988926d4d88337719417`.

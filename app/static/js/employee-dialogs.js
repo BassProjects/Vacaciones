@@ -105,6 +105,11 @@ export function createFeature(ctx) {
             : ""
         }
         <div class="modal-actions">
+          ${
+            isEdit && user.id !== APP.me.id
+              ? `<button type="button" class="btn btn-danger" data-action="manage-worker" data-operation="remove" data-id="${esc(user.id)}" ${APP.modalLoading ? "disabled" : ""}>Eliminar trabajador</button>`
+              : ""
+          }
           <button type="button" class="btn btn-outline" data-action="close-modal">Cancelar</button>
           <button type="submit" class="btn btn-primary" ${APP.modalLoading ? "disabled" : ""}>${
       APP.modalLoading ? "Guardando…" : "Guardar"
