@@ -222,7 +222,7 @@ def confirm_calamari(
     imported, skipped = 0, 0
     for row in selected:
         employee = db.get(Employee, row["matchedUserId"]) if row["matchedUserId"] else None
-        if not employee or not employee.department:
+        if not employee or employee.deleted_at is not None or not employee.department:
             raise HTTPException(
                 409, "Todas las filas elegidas deben corresponder a un empleado con departamento"
             )

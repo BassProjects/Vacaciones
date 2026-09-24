@@ -35,9 +35,10 @@ Conserva los cálculos con Decimal y fechas de calendario; instantes UTC, presen
 Cambios de esquema únicamente mediante Alembic y operación explícita; nunca desde un arranque
 web. No crear administradores ni contraseñas predeterminadas. No borrar historial de empleados:
 la acción habitual es desactivar. Los eventos de auditoría son de solo inserción para la aplicación.
-La eliminación individual autorizada exige confirmación y ausencia de historial; nunca borra en
-cascada. Para registro, suspensión, reactivación y eliminación lee `docs/onboarding-and-workers.md`.
-La revisión de esquema `0002_onboarding` exige una migración explícita antes de dar la web por lista.
+La eliminación individual autorizada exige confirmación y es lógica: retira acceso y la cuenta
+de la lista, pero nunca borra el historial en cascada. Para registro, suspensión, reactivación y
+eliminación lee `docs/onboarding-and-workers.md`. La revisión de esquema actual
+`0003_employee_logical_delete` exige una migración explícita antes de dar la web por lista.
 
 ## Credenciales y operación
 

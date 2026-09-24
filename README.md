@@ -11,8 +11,9 @@ PostgreSQL y la interfaz de calendario. Estándar Electropolis **1.0.0**, planti
 Destino publicado: **https://app-vacaciones.dokploy.electropolis.es**.
 El responsable ha decidido empezar desde cero, sin importar datos de Vercel, con
 un único administrador cuyo usuario será `electropolis`. No se borra el origen.
-El esquema se gestiona mediante Alembic; la ampliación de registro usa la revisión
-`0002_onboarding`. En una instalación vacía, el alta del administrador requiere una
+El esquema se gestiona mediante Alembic; el registro usa `0002_onboarding` y la
+eliminación lógica segura de trabajadores usa `0003_employee_logical_delete`. En una
+instalación vacía, el alta del administrador requiere una
 contraseña inicial introducida por el canal seguro; no hay acceso predeterminado.
 El email no es obligatorio para esa primera cuenta. Se exige cambiar la contraseña
 al entrar antes de acceder al resto de funciones.
@@ -55,10 +56,12 @@ el año. El enlace no inicia sesión automáticamente ni envía contraseñas por
 
 La lista de trabajadores separa desactivar, reactivar y eliminar. Solo administradores
 pueden hacerlo; no se permite eliminar/desactivar la propia cuenta ni dejar la app
-sin un administrador registrado y activo. Eliminar exige escribir el usuario exacto
-y se rechaza si existen solicitudes, políticas, delegaciones, importaciones o
-justificantes asociados. Se conserva la auditoría y no se borra historial en cascada.
-Los pendientes de registro tienen un botón para enviar un nuevo enlace. La suspensión,
+sin un administrador registrado y activo. Eliminar exige escribir el usuario exacto,
+retira la cuenta de la lista, invalida su acceso y libera su usuario/correo para poder
+reutilizarlos. Las solicitudes, políticas, delegaciones, importaciones, justificantes
+y auditoría permanecen vinculados a un registro interno no accesible: no se borra
+historial en cascada. Los pendientes de registro tienen un botón para enviar un nuevo
+enlace. La suspensión,
 el cambio de correo o la sustitución del enlace invalidan los anteriores.
 
 La recuperación autónoma de una contraseña olvidada sigue siendo una función distinta

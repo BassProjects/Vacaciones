@@ -345,19 +345,20 @@ def test_delete_requires_admin_confirmation_preserves_audit_and_never_removes_hi
         == 200
     )
     with database.sessions() as db:
-        assert db.get(Employee, "test-coworker") is None
+        deleted = db.get(Employee, "test-coworker")
+        assert deleted is not None and deleted.deleted_at is not None and not deleted.active
+        assert deleted.email is None and deleted.username == "deleted-test-coworker"
         assert (
             db.scalar(select(AuditEvent).where(AuditEvent.action == "employee.deleted")) is not None
         )
     request = send(worker, "POST", "/api/requests", json=request_payload)
     assert request.status_code == 200
-    assert (
-        send(
-            admin, "POST", "/api/users/test-worker/remove", json={"confirmation": "worker"}
-        ).status_code
-        == 409
-    )
+    removed = send(admin, "POST", "/api/users/test-worker/remove", json={"confirmation": "worker"})
+    assert removed.status_code == 200
+    assert removed.json()["historyPreserved"] and removed.json()["removedFromEmployees"]
+    assert worker.get("/api/auth/me").json()["user"] is None
     assert admin.get("/api/requests/" + request.json()["id"]).status_code == 200
+    assert "test-worker" not in {row["id"] for row in admin.get("/api/bootstrap").json()["users"]}
     with database.sessions() as db:
         db.add(Policy(user_id="test-delegate", year=2026, entitlement=22))
         db.commit()
@@ -365,8 +366,12 @@ def test_delete_requires_admin_confirmation_preserves_audit_and_never_removes_hi
         send(
             admin, "POST", "/api/users/test-delegate/remove", json={"confirmation": "delegate"}
         ).status_code
-        == 409
+        == 200
     )
+    with database.sessions() as db:
+        deleted = db.get(Employee, "test-delegate")
+        assert deleted.deleted_at is not None
+        assert db.get(Policy, ("test-delegate", 2026)) is not None
 
 
 def test_delete_pending_invitee_removes_tokens_and_cancels_queued_mail(invited, clients, database):
@@ -393,7 +398,9 @@ def test_delete_pending_invitee_removes_tokens_and_cancels_queued_mail(invited, 
         == 400
     )
     with database.sessions() as db:
-        assert db.get(Employee, invited["userId"]) is None
+        deleted = db.get(Employee, invited["userId"])
+        assert deleted is not None and deleted.deleted_at is not None
+        assert not deleted.active and deleted.email is None
         assert db.scalar(select(func.count()).select_from(ActivationToken)) == 0
 
 

@@ -122,7 +122,8 @@ def set_policy(
     db=Depends(get_db),
 ):
     lock_configuration(db)
-    if not 1900 <= year <= 2200 or not db.get(Employee, user_id):
+    employee = db.get(Employee, user_id)
+    if not 1900 <= year <= 2200 or not employee or employee.deleted_at is not None:
         raise HTTPException(400, "Empleado o año no válido")
     if payload.carryover_expiry and payload.carryover_expiry.year != year:
         raise HTTPException(400, "La caducidad debe pertenecer al mismo ejercicio")

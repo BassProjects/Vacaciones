@@ -32,6 +32,7 @@ def check_last_admin(db, employee, next_role, next_active):
             .where(
                 Employee.role == "admin",
                 Employee.active.is_(True),
+                Employee.deleted_at.is_(None),
                 Employee.onboarding_pending.is_(False),
                 Employee.id != employee.id,
             )
@@ -110,7 +111,7 @@ def edit_employee(
         if me.id != user_id or set(changes) - {"name", "email", "birth_date", "share_birthday"}:
             raise HTTPException(403, "No autorizado")
     employee = db.get(Employee, user_id)
-    if not employee:
+    if not employee or employee.deleted_at is not None:
         raise HTTPException(404, "Empleado no encontrado")
     for key in ("name", "email", "role", "active", "calendar_id", "work_hours", "share_birthday"):
         if key in changes and changes[key] is None:
@@ -173,7 +174,7 @@ def deactivate_employee(
     if not me.active or me.onboarding_pending or me.role != "admin":
         raise HTTPException(403, "No autorizado")
     employee = db.get(Employee, user_id)
-    if not employee:
+    if not employee or employee.deleted_at is not None:
         raise HTTPException(404, "Empleado no encontrado")
     if employee.id == me.id:
         raise HTTPException(409, "No puedes desactivar tu propia cuenta desde esta acción")
@@ -196,7 +197,7 @@ def reset_employee_password(
 ):
     lock_configuration(db)
     employee = db.get(Employee, user_id)
-    if not employee:
+    if not employee or employee.deleted_at is not None:
         raise HTTPException(404, "Empleado no encontrado")
     if employee.onboarding_pending:
         raise HTTPException(

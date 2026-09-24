@@ -33,11 +33,11 @@ def test_upgrade_preserves_working_accounts_and_only_marks_unused_invitations(da
             for e in db.scalars(select(Employee))
         }
     downgrade_to_initial(database)
-    assert "onboarding_pending" not in {
-        c["name"] for c in inspect(database.engine).get_columns("employees")
-    }
-    assert migrate(database)["revision"] == "0002_onboarding"
-    assert migrate(database)["revision"] == "0002_onboarding"
+    columns = {c["name"] for c in inspect(database.engine).get_columns("employees")}
+    assert "onboarding_pending" not in columns and "deleted_at" not in columns
+    assert migrate(database)["revision"] == "0003_employee_logical_delete"
+    assert migrate(database)["revision"] == "0003_employee_logical_delete"
+    assert "deleted_at" in {c["name"] for c in inspect(database.engine).get_columns("employees")}
     with database.sessions() as db:
         for e in db.scalars(select(Employee)):
             assert (e.password_hash, e.password_salt, e.name, e.active) == original[e.id]

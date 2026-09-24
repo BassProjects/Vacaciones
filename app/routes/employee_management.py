@@ -1,28 +1,19 @@
 """Explicit administrator actions. Deletion never cascades through business history."""
 
 import re
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Field
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, select, update
 
 from app.db import audit, get_db, lock_configuration
 from app.invitation_delivery import delivery_state
-from app.models import (
-    ActivationToken,
-    Attachment,
-    Delegation,
-    Employee,
-    ImportBatch,
-    LeaveRequest,
-    Outbox,
-    PasswordReset,
-    Policy,
-)
+from app.models import ActivationToken, Employee, Outbox, PasswordReset, now
 from app.onboarding import lock_mail_changes, queue_activation, revoke_activation
 from app.routes.users import check_last_admin
 from app.schemas import Payload
-from app.security import administrator, revoke_sessions, throttle
+from app.security import administrator, hash_password, revoke_sessions, throttle
 
 router = APIRouter(prefix="/api/users", tags=["Gestión de trabajadores"])
 
@@ -38,7 +29,7 @@ def locked_employee(db, user_id, me):
     if not me.active or me.onboarding_pending or me.role != "admin":
         raise HTTPException(403, "No autorizado")
     employee = db.get(Employee, user_id)
-    if not employee:
+    if not employee or employee.deleted_at is not None:
         raise HTTPException(404, "Empleado no encontrado")
     return employee
 
@@ -57,39 +48,44 @@ def remove_employee(
     check_last_admin(db, employee, employee.role, False)
     if payload.confirmation != employee.username:
         raise HTTPException(400, "Escribe el usuario exacto para confirmar la eliminación")
-    # Historic resolution/upload attribution stores names; preserve that history too.
-    identities = [user_id, employee.name]
-    references = [
-        (
-            LeaveRequest,
-            or_(LeaveRequest.user_id == user_id, LeaveRequest.resolved_by.in_(identities)),
-        ),
-        (Policy, Policy.user_id == user_id),
-        (Delegation, or_(Delegation.manager_id == user_id, Delegation.delegate_id == user_id)),
-        (ImportBatch, ImportBatch.user_id == user_id),
-        (Attachment, Attachment.uploaded_by.in_(identities)),
-    ]
-    for model, condition in references:
-        if db.scalar(select(model).where(condition).limit(1)):
-            raise HTTPException(
-                409,
-                "Este trabajador tiene historial, solicitudes o datos asociados. "
-                "Desactívalo para conservarlos; no se ha eliminado nada.",
-            )
+    original_email = employee.email
+    original_username = employee.username
     revoke_activation(db, user_id, "RECIPIENT_REMOVED")
-    if employee.email:
+    if original_email:
         db.execute(
             update(Outbox)
-            .where(Outbox.recipient == employee.email, Outbox.status == "pending")
+            .where(Outbox.recipient == original_email, Outbox.status == "pending")
             .values(status="failed", last_error="RECIPIENT_REMOVED")
         )
     revoke_sessions(db, user_id)
     db.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
     db.execute(delete(ActivationToken).where(ActivationToken.user_id == user_id))
-    audit(db, me, "employee.deleted", user_id, request=request)
-    db.delete(employee)
+    employee.active = False
+    employee.deleted_at = now()
+    employee.email = None
+    employee.username = "deleted-" + employee.id
+    employee.onboarding_pending = False
+    employee.must_change_password = False
+    employee.birth_date = None
+    employee.share_birthday = False
+    employee.password_hash, employee.password_salt, employee.password_scheme = hash_password(
+        secrets.token_urlsafe(48)
+    )
+    audit(
+        db,
+        me,
+        "employee.deleted",
+        user_id,
+        {"username": original_username, "history_preserved": True},
+        request,
+    )
     db.commit()
-    return {"ok": True, "deleted": True, "auditPreserved": True}
+    return {
+        "ok": True,
+        "deleted": True,
+        "historyPreserved": True,
+        "removedFromEmployees": True,
+    }
 
 
 @router.post("/{user_id}/activation-link")

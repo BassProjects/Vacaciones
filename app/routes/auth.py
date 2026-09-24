@@ -48,7 +48,13 @@ def login(payload: Login, request: Request, db=Depends(get_db)):
         user.password_salt if user else DUMMY_SALT,
         user.password_scheme if user else DUMMY_SCHEME,
     )
-    if not valid or not user or not user.active or user.onboarding_pending:
+    if (
+        not valid
+        or not user
+        or user.deleted_at is not None
+        or not user.active
+        or user.onboarding_pending
+    ):
         raise HTTPException(401, "Usuario o contraseña incorrectos")
     if user.password_scheme == "scrypt-node-v1":
         user.password_hash, user.password_salt, user.password_scheme = (
@@ -105,7 +111,9 @@ def forgot_password(payload: ForgotPassword, request: Request, db=Depends(get_db
     throttle(db, "forgot-email:" + str(payload.email).lower(), limit=3, minutes=60)
     user = db.scalar(
         select(Employee).where(
-            Employee.email == str(payload.email).lower(), Employee.active.is_(True)
+            Employee.email == str(payload.email).lower(),
+            Employee.active.is_(True),
+            Employee.deleted_at.is_(None),
         )
     )
     if user and request.app.state.settings.mail_enabled:
@@ -129,7 +137,7 @@ def reset_password(payload: CompleteReset, request: Request, db=Depends(get_db))
     if not link or link.used or link.expires_at <= now():
         raise HTTPException(400, "Enlace no válido o caducado")
     user = db.get(Employee, link.user_id)
-    if not user or not user.active or user.onboarding_pending:
+    if not user or user.deleted_at is not None or not user.active or user.onboarding_pending:
         raise HTTPException(400, "Enlace no válido o caducado")
     user.password_hash, user.password_salt, user.password_scheme = hash_password(
         payload.new_password

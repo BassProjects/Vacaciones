@@ -61,7 +61,13 @@ def prepare_activation(db, item, settings):
     lock_configuration(db)
     user_id = item.context.get("user_id") or item.event_key.split(":")[1]
     user = db.get(Employee, user_id)
-    if not user or not user.active or not user.onboarding_pending or user.email != item.recipient:
+    if (
+        not user
+        or user.deleted_at is not None
+        or not user.active
+        or not user.onboarding_pending
+        or user.email != item.recipient
+    ):
         return None
     db.execute(update(ActivationToken).where(ActivationToken.user_id == user.id).values(used=True))
     raw = secrets.token_urlsafe(32)
@@ -93,6 +99,7 @@ def valid_activation(db, raw, *, for_update=False):
         or link.used
         or link.expires_at <= now()
         or not user
+        or user.deleted_at is not None
         or not user.active
         or not user.onboarding_pending
         or user.email != link.email

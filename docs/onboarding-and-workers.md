@@ -13,12 +13,12 @@ han modificado cuentas GitHub, permisos de plataforma ni roles globales.
   acceso de una cuenta ya registrada, conservando su contraseña. Si aún está pendiente
   de registro, deberá recibir un enlace nuevo; no se rehabilita un enlace revocado.
 - **Eliminar** requiere escribir el usuario exacto. No se pueden eliminar ni desactivar
-  la propia cuenta, ni dejar el servicio sin un administrador registrado activo.
-  El borrado individual solo permite cuentas sin solicitudes (también sin resoluciones
-  atribuidas), políticas anuales, delegaciones, importaciones o adjuntos atribuidos.
-  Si hay datos asociados, se rechaza íntegramente y se ofrece desactivar. No se eliminan
-  solicitudes ni auditoría en cascada. Se cancelan avisos pendientes al correo eliminado,
-  se retiran sesiones/tokens de acceso y se registra el evento `employee.deleted`.
+  la propia cuenta, ni dejar el servicio sin un administrador registrado activo. La
+  eliminación es lógica: la cuenta desaparece de **Empleados**, se desactiva, se revocan
+  sesiones y tokens, se retiran correo y credenciales de acceso y se libera el usuario
+  para reutilizarlo. Solicitudes, políticas, delegaciones, importaciones, justificantes
+  y auditoría siguen referenciando un registro interno tombstone; no se borran en
+  cascada. Se cancelan avisos pendientes y se registra `employee.deleted`.
 - **Enviar enlace de registro** aparece en cuentas habilitadas pendientes de registro.
   Requiere confirmación; envía a su correo actual un enlace nuevo e invalida los anteriores.
   Cada petición tiene una clave idempotente y se limita a cinco peticiones por cuenta/hora.
@@ -64,13 +64,13 @@ como consecuencia de la migración o de consultar estados.
 
 ## Migración y publicación controladas
 
-Nueva revisión Alembic **0002_onboarding**, posterior a **0001_python**:
-columna booleana `employees.onboarding_pending`, por defecto false, y tabla de tokens.
-Solo marca como pendientes las cuentas con evento de invitación, cambio inicial requerido
-y sin registro de inicio de sesión o cambio/restablecimiento completado de contraseña.
-No modifica contraseñas, nombres, cumpleaños, estado activo/desactivado, solicitudes,
-saldos ni eventos de auditoría. No envía correos. Las cuentas que ya se utilizaron se
-conservan operativas. La migración es una acción explícita; no ocurre al arrancar la web.
+La revisión **0002_onboarding** añade `employees.onboarding_pending` y los tokens de
+registro. La revisión posterior **0003_employee_logical_delete** añade `employees.deleted_at`
+para retirar trabajadores de la aplicación sin romper las referencias históricas.
+`0002_onboarding` solo marca como pendientes las invitaciones nunca utilizadas.
+`0003_employee_logical_delete` no elimina ni modifica trabajadores existentes: únicamente
+prepara la marca necesaria para futuras eliminaciones confirmadas. Ninguna de las dos
+migraciones envía correos. La migración es una acción explícita; no ocurre al arrancar la web.
 
 Antes de publicar: revisar cambios compartidos, comprobar la copia aplicable y guardar/subir
 un commit real. Publicar ese commit con puerto 8080, `/health` y `/ready`. La nueva web
@@ -81,7 +81,7 @@ No se promete un despliegue sin interrupción.
 Una vez disponible la imagen nueva, ejecutar **una sola vez** la tarea nativa ya existente
 `schema-migration`, cuyo comando es `/app/.venv/bin/python -m app.cli migrate`. Mantenerla
 pausada. Consultar estado y log hasta resultado final, comprobar la revisión devuelta
-`0002_onboarding`, `/ready`, la página de activación y las rutas protegidas. La tarea
+`0003_employee_logical_delete`, `/ready`, la página de activación y las rutas protegidas. La tarea
 `initial-administrator` no debe ejecutarse; no se recrean administradores.
 
 La petición de desarrollo no autoriza por sí sola publicar ni alterar datos reales.
@@ -90,10 +90,10 @@ La verificación de este cambio utiliza únicamente el PostgreSQL 16 temporal de
 ## Recuperación
 
 Un rollback de imagen no revierte el esquema, las cuentas registradas, los datos, las
-contraseñas ni la configuración SMTP. La imagen previa espera exactamente `0001_python`:
-no recuperarla sobre `0002_onboarding` sin un procedimiento compatible y autorizado.
-El downgrade de esta revisión solo se ensaya sobre datos ficticios; elimina la tabla de
-tokens y la marca de registro, dejando desactivadas las cuentas aún pendientes para no
-concederles acceso. No activa ni borra una cuenta de trabajo. Una reversión posterior
-puede necesitar reactivar expresamente esas cuentas y emitir nuevas invitaciones.
+contraseñas ni la configuración SMTP. La imagen inmediatamente anterior espera
+`0002_onboarding`, por lo que no debe recuperarse sobre `0003_employee_logical_delete`
+sin un procedimiento compatible. El downgrade de `0003` solo retira la marca de borrado;
+las cuentas ya eliminadas lógicamente permanecen desactivadas y con sus credenciales
+retiradas. Un downgrade posterior de `0002` mantiene además desactivados los registros
+pendientes para no conceder acceso accidentalmente.
 No ejecutar downgrade, borrar tablas o restaurar producción automáticamente ante un fallo.

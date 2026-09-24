@@ -25,7 +25,7 @@ export function workerManagementModal(APP) {
   const description = {
     deactivate: 'Se cerrarán sus sesiones y se invalidarán sus enlaces de registro. Su historial y justificantes se conservarán.',
     activate: user.onboardingPending ? 'Se habilitará la cuenta. Después deberás enviarle un enlace para que complete su registro; los enlaces antiguos seguirán invalidados.' : 'Podrá volver a iniciar sesión con su contraseña. Su historial no cambia.',
-    remove: 'La eliminación es irreversible y solo se permite cuando no hay solicitudes ni otros datos de trabajo asociados. Si tiene historial, debes desactivarlo. La auditoría se conserva.',
+    remove: 'La cuenta desaparecerá de Empleados y perderá el acceso. Sus solicitudes, saldos, justificantes y auditoría se conservarán para no perder el historial de la empresa. La eliminación requiere confirmación.',
     resend: 'Se enviará un enlace personal de registro a su correo. Los enlaces anteriores dejarán de servir. El correo se procesará en la siguiente pasada del servicio.',
   };
   return `<h2 class="modal-title">${labels[modal.operation]} trabajador</h2>

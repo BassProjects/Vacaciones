@@ -76,6 +76,7 @@ class Employee(Base):
     role: Mapped[str] = mapped_column(String(20), default="worker")
     allowance_override: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     onboarding_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     birth_date: Mapped[date | None] = mapped_column(Date)

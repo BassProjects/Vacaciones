@@ -47,9 +47,21 @@ def bootstrap(
     configuration = db.get(Configuration, 1)
     if not configuration:
         raise HTTPException(503, "Configuración pendiente")
-    users = list(db.scalars(select(Employee).order_by(Employee.name))) if me.role == "admin" else []
+    users = (
+        list(
+            db.scalars(
+                select(Employee).where(Employee.deleted_at.is_(None)).order_by(Employee.name)
+            )
+        )
+        if me.role == "admin"
+        else []
+    )
     roster_rows = list(
-        db.scalars(select(Employee).where(Employee.active.is_(True)).order_by(Employee.name))
+        db.scalars(
+            select(Employee)
+            .where(Employee.active.is_(True), Employee.deleted_at.is_(None))
+            .order_by(Employee.name)
+        )
     )
     rows = list(
         db.scalars(
@@ -152,7 +164,7 @@ def employee_balance(user_id: str, year: int, me=Depends(current_user), db=Depen
     if not 1900 <= year <= 2200:
         raise HTTPException(400, "Año no válido")
     employee = db.get(Employee, user_id)
-    if not employee:
+    if not employee or employee.deleted_at is not None:
         raise HTTPException(404, "Empleado no encontrado")
     if (
         me.role != "admin"

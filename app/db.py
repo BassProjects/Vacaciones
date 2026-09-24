@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings
 from app.models import AuditEvent, Configuration, Employee
 
-SCHEMA_REVISION = "0002_onboarding"
+SCHEMA_REVISION = "0003_employee_logical_delete"
 
 
 class Database:
@@ -51,6 +51,7 @@ class Database:
                     select(Employee.id)
                     .where(
                         Employee.active.is_(True),
+                        Employee.deleted_at.is_(None),
                         Employee.role == "admin",
                         Employee.onboarding_pending.is_(False),
                     )
